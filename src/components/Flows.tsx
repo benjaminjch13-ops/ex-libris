@@ -187,7 +187,7 @@ export function NextUpDialog({ afterId, onClose, onStart, onGoTbr }: {
 }
 
 const DAY = 86400000
-export const NUDGE_DAYS = 21
+const NUDGE_DAYS = 21
 
 /** A book "being read" that hasn't been touched for weeks. */
 export function staleBook(books: Book[]): Book | undefined {

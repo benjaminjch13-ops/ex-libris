@@ -3,12 +3,14 @@ import { motion } from 'motion/react'
 import { createPortal } from 'react-dom'
 import { Close } from './Icons'
 
-export function Modal({ title, onClose, children, footer, narrow, labelId }: {
+export function Modal({ title, onClose, children, footer, narrow, tall, labelId }: {
   title: string
   onClose: () => void
   children: ReactNode
   footer?: ReactNode
   narrow?: boolean
+  /** keeps one height while its content changes (tabbed dialogs) */
+  tall?: boolean
   labelId?: string
 }) {
   const ref = useRef<HTMLDivElement>(null)
@@ -39,7 +41,7 @@ export function Modal({ title, onClose, children, footer, narrow, labelId }: {
       <motion.div className="modal-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} />
       <motion.div
         ref={ref}
-        className={`modal${narrow ? ' narrow' : ''}`}
+        className={`modal${narrow ? ' narrow' : ''}${tall ? ' tall' : ''}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby={id}

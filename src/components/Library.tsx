@@ -410,7 +410,7 @@ const hueOf = (hex: string) => {
 }
 
 /** Shelves grouped and ordered the way the reader chose (Preferencias → Estantería). */
-export function groupBooks(list: Book[], prefs: ShelfPrefs, custom: string[]): [string, Book[]][] {
+function groupBooks(list: Book[], prefs: ShelfPrefs, custom: string[]): [string, Book[]][] {
   const keyOf = (b: Book): string => {
     switch (prefs.group) {
       case 'genero': return genreOf(b)

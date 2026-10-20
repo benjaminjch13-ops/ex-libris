@@ -1,7 +1,7 @@
 import JSZip from 'jszip'
 import type { Chapter, TocEntry } from '../types'
 
-export interface EpubMeta {
+interface EpubMeta {
   title?: string
   author?: string
   description?: string
@@ -9,7 +9,7 @@ export interface EpubMeta {
   coverBlob?: Blob
 }
 
-export interface ParsedEpub {
+interface ParsedEpub {
   meta: EpubMeta
   chapters: Chapter[]
   toc: TocEntry[]
@@ -18,7 +18,6 @@ export interface ParsedEpub {
 }
 
 import { BookFileError } from './errors'
-export { BookFileError }
 
 const KEEP = new Set([
   'p', 'div', 'span', 'section', 'article', 'header', 'footer', 'aside', 'main', 'nav',
@@ -33,7 +32,7 @@ function dirname(p: string) {
   return i < 0 ? '' : p.slice(0, i + 1)
 }
 
-export function resolvePath(base: string, rel: string) {
+function resolvePath(base: string, rel: string) {
   if (/^[a-z]+:/i.test(rel)) return rel
   const parts = (dirname(base) + decodeURIComponent(rel.split('#')[0])).split('/')
   const out: string[] = []

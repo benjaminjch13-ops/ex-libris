@@ -1,6 +1,6 @@
 export type ThemeId = 'auto' | 'nocturna' | 'pergamino' | 'gotica' | 'bosque' | 'oceano' | 'rosa' | 'estrellas' | 'montanas' | 'acogedor' | 'naturaleza' | 'lluvia'
 
-export interface Theme {
+interface Theme {
   id: Exclude<ThemeId, 'auto'>
   name: string
   line: string
@@ -33,7 +33,7 @@ export const THEMES: Theme[] = [
     sky: 'repeating-linear-gradient(105deg, transparent 0 9px, rgba(170,200,230,.25) 9px 10px, transparent 10px 23px), #12161b' },
 ]
 
-export function resolveTheme(id: ThemeId | undefined): Theme {
+function resolveTheme(id: ThemeId | undefined): Theme {
   if (!id || id === 'auto') {
     const light = typeof window !== 'undefined' && window.matchMedia?.('(prefers-color-scheme: light)').matches
     return THEMES.find((t) => t.id === (light ? 'pergamino' : 'nocturna'))!

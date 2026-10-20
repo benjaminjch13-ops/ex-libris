@@ -4,7 +4,7 @@ import type { Note, NoteColor } from '../../types'
 import type { PageRef } from './pagination'
 import { Close, Trash } from '../Icons'
 
-export const NOTE_COLORS: { id: NoteColor; label: string }[] = [
+const NOTE_COLORS: { id: NoteColor; label: string }[] = [
   { id: 'amarillo', label: 'Amarillo' },
   { id: 'rosa', label: 'Rosa' },
   { id: 'verde', label: 'Verde' },

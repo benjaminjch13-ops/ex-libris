@@ -79,7 +79,7 @@ export function Cover({ book, className = '', style }: { book: Book; className?:
   )
 }
 
-export function Spine({ book }: { book: Book }) {
+function Spine({ book }: { book: Book }) {
   const p = book.palette
   const variant = hash(book.id + 'spine') % 3
   const surname = (book.author || '').split(/[,\s]+/).filter(Boolean).pop() ?? ''
@@ -96,7 +96,7 @@ export function Spine({ book }: { book: Book }) {
   )
 }
 
-export interface BookDims { w: number; h: number; d: number }
+interface BookDims { w: number; h: number; d: number }
 
 /** Book as a 3D object: cover, back, spine, page edges. Orientation is set by the parent. */
 export function Book3D({ book, dims, className = '', style, innerPage }: {

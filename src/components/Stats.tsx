@@ -11,9 +11,9 @@ type Metric = 'libros' | 'paginas'
 
 // Validated (dark surface #1c1714): lightness band, chroma, CVD ΔE 17.3 / normal ΔE 24.6 adjacent.
 const SERIES: { key: Status; label: string; color: string }[] = [
-  { key: 'terminado', label: 'Terminados', color: '#c98500' },
-  { key: 'leyendo', label: 'Leyendo', color: '#9085e9' },
-  { key: 'pendiente', label: 'Pendientes', color: '#199e70' },
+  { key: 'terminado', label: 'Terminados', color: '#c99a4b' },
+  { key: 'leyendo', label: 'Leyendo', color: '#9b8ac4' },
+  { key: 'pendiente', label: 'Pendientes', color: '#5f9c80' },
 ]
 
 interface Row {
@@ -149,13 +149,13 @@ export function Stats({ onBack, onOpenBook }: { onBack: () => void; onOpenBook: 
                         ? SERIES.filter((s) => r.byStatus[s.key] > 0).map((s) => (
                           <span
                             key={s.key}
-                            className="seg"
+                            className="bseg"
                             style={{ flexGrow: r.byStatus[s.key], background: s.color }}
                             onMouseMove={(e) => setTip({ x: e.clientX, y: e.clientY, title: r.genre, lines: SERIES.map((x) => `${x.label}: ${r.byStatus[x.key]}`) })}
                             onMouseLeave={() => setTip(null)}
                           />
                         ))
-                        : <span className="seg" style={{ flexGrow: 1, background: SERIES[0].color }} onMouseMove={(e) => setTip({ x: e.clientX, y: e.clientY, title: r.genre, lines: [`${fmt(r.pagesRead)} páginas leídas`, `${r.byStatus.terminado} libros terminados`] })} onMouseLeave={() => setTip(null)} />}
+                        : <span className="bseg" style={{ flexGrow: 1, background: SERIES[0].color }} onMouseMove={(e) => setTip({ x: e.clientX, y: e.clientY, title: r.genre, lines: [`${fmt(r.pagesRead)} páginas leídas`, `${r.byStatus.terminado} libros terminados`] })} onMouseLeave={() => setTip(null)} />}
                     </span>
                   </span>
                   <span role="cell" className="num strong">{fmt(total)}</span>

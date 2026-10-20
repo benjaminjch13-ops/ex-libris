@@ -10,7 +10,7 @@ export function hash(s: string) {
 }
 
 /** Cloth-binding colours: deep, slightly dusty tones that sit well on walnut. */
-export const CLOTHS: Palette[] = [
+const CLOTHS: Palette[] = [
   { bg: '#5b1f24', fg: '#f3e3c4', accent: '#d7b46a' }, // oxblood
   { bg: '#1f3a33', fg: '#ecdfc0', accent: '#c9a45c' }, // bottle green
   { bg: '#23304f', fg: '#e9e1cc', accent: '#d2b06f' }, // navy

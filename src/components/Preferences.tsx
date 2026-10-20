@@ -18,11 +18,11 @@ const TABS: { id: PrefTab; label: string }[] = [
 export function Preferences({ onClose, initialTab = 'apariencia' }: { onClose: () => void; initialTab?: PrefTab }) {
   const [tab, setTab] = useState<PrefTab>(initialTab)
   return (
-    <Modal title="Preferencias" onClose={onClose} footer={<button className="btn btn-gold" onClick={onClose}>Listo</button>}>
+    <Modal title="Preferencias" tall onClose={onClose} footer={<button className="btn btn-gold" onClick={onClose}>Listo</button>}>
       <div className="pref-tabs" role="tablist" aria-label="Secciones de preferencias">
-        {TABS.map((t) => <button key={t.id} role="tab" aria-selected={tab === t.id} className="chip" aria-pressed={tab === t.id} onClick={() => setTab(t.id)}>{t.label}</button>)}
+        {TABS.map((t) => <button key={t.id} role="tab" aria-selected={tab === t.id} className="chip" aria-pressed={tab === t.id} onClick={(e) => { setTab(t.id); e.currentTarget.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' }) }}>{t.label}</button>)}
       </div>
-      <div className="pref-body" role="tabpanel">
+      <div className="pref-body" role="tabpanel" key={tab}>
         {tab === 'apariencia' && <Appearance />}
         {tab === 'lectura' && <ReadingPanel />}
         {tab === 'estanteria' && <ShelfPanel />}
@@ -295,7 +295,7 @@ function ExLibrisPanel() {
         <div className="row2">
           <div className="field">
             <span className="lbl">Forma</span>
-            <div className="seg seg-n" role="radiogroup" aria-label="Forma" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
+            <div className="seg seg-n" role="radiogroup" aria-label="Forma" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(84px, 1fr))' }}>
               {([['ovalo', 'Óvalo'], ['circulo', 'Círculo'], ['escudo', 'Escudo'], ['rect', 'Marco']] as const).map(([v, l]) => <button key={v} type="button" role="radio" aria-checked={ex.shape === v} onClick={() => set({ shape: v })}>{l}</button>)}
             </div>
           </div>

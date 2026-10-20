@@ -87,7 +87,7 @@ const GENRE_HINTS: [RegExp, string][] = [
   [/fiction|ficci|novel|novela/i, 'Novela'],
 ]
 
-export function genreFromSubjects(subjects: string[] = []): string | undefined {
+function genreFromSubjects(subjects: string[] = []): string | undefined {
   const text = subjects.join(' | ')
   if (!text) return undefined
   for (const [re, g] of GENRE_HINTS) if (re.test(text) && GENRES.includes(g)) return g
@@ -243,7 +243,7 @@ export async function fetchCoverBlob(url?: string): Promise<Blob | undefined> {
 
 // ---------- store links ----------
 
-export interface StoreLink { url: string; store: string; kind: 'google' | 'apple' | 'amazon' | 'other'; id?: string; isbn?: string; query?: string; country?: string }
+interface StoreLink { url: string; store: string; kind: 'google' | 'apple' | 'amazon' | 'other'; id?: string; isbn?: string; query?: string; country?: string }
 
 const STORES: [RegExp, string][] = [
   [/(^|\.)play\.google\./, 'Google Play'],
@@ -270,14 +270,14 @@ const STORES: [RegExp, string][] = [
   [/planetadelibros/, 'Planeta'],
 ]
 
-export function storeName(host: string): string {
+function storeName(host: string): string {
   const h = host.replace(/^www\./, '').toLowerCase()
   for (const [re, name] of STORES) if (re.test(h)) return name
   const core = h.split('.').filter((p) => !['com', 'co', 'net', 'org', 'es', 'mx', 'gt', 'ar', 'cl', 'pe', 'shop', 'store', 'm'].includes(p))[0] ?? h
   return core.charAt(0).toUpperCase() + core.slice(1)
 }
 
-export function findUrl(text: string): string | undefined {
+function findUrl(text: string): string | undefined {
   return text.match(/https?:\/\/[^\s<>"']+/i)?.[0]?.replace(/[).,;]+$/, '')
 }
 

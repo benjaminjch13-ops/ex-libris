@@ -7,7 +7,7 @@ import { Edit } from './Icons'
 
 const DAY = 86400000
 
-export function readingStats(book: Book, history: ReturnType<typeof useLibrary>['history']) {
+function readingStats(book: Book, history: ReturnType<typeof useLibrary>['history']) {
   const sessions = history.filter((h) => h.bookId === book.id && h.type === 'sesion')
   const seconds = sessions.reduce((n, h) => n + (h.seconds ?? (h.minutes ?? 0) * 60), 0)
   const minutes = Math.round(seconds / 60)
@@ -19,7 +19,7 @@ export function readingStats(book: Book, history: ReturnType<typeof useLibrary>[
   return { sessions: sessions.length, seconds, minutes, started, finished, days, span }
 }
 
-export function fmtDuration(min: number) {
+function fmtDuration(min: number) {
   if (min < 1) return '< 1 min'
   if (min < 60) return `${min} min`
   const h = Math.floor(min / 60)

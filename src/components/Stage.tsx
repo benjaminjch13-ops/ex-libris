@@ -12,7 +12,7 @@ import { ExLibrisSeal } from './ExLibrisSeal'
 import { editionLabel, isManual } from './Flows'
 import { DROP_REASONS } from '../types'
 
-export type StagePhase = 'enter' | 'preview' | 'opening' | 'return' | 'leaving'
+type StagePhase = 'enter' | 'preview' | 'opening' | 'return' | 'leaving'
 
 interface Props {
   book: Book

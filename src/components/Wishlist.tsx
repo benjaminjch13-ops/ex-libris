@@ -92,7 +92,7 @@ export function Wishlist({ onBack, shared, onSharedDone, onBuyDigital, onRecs }:
       <form className="wish-add" onSubmit={(e) => { e.preventDefault(); take(input) }}>
         <label className="sr-only" htmlFor="wish-in">Enlace o título</label>
         <input id="wish-in" value={input} onChange={(e) => setInput(e.target.value)} onPaste={(e) => { const t = e.clipboardData.getData('text'); if (/https?:\/\//.test(t)) { e.preventDefault(); setInput(t); take(t) } }}
-          placeholder="Pega un enlace o escribe un título" autoComplete="off" inputMode="url" enterKeyHint="go" />
+          placeholder="Enlace o título del libro" autoComplete="off" inputMode="url" enterKeyHint="go" />
         {'clipboard' in navigator && 'readText' in (navigator.clipboard ?? {}) && <button type="button" className="btn hide-xs" onClick={paste}>Pegar</button>}
         <button type="submit" className="btn btn-gold" disabled={busy || !input.trim()}>{busy ? <span className="spin" /> : <Plus size={16} />} Añadir</button>
       </form>

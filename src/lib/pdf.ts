@@ -52,7 +52,7 @@ export async function renderPageBlob(doc: PDFDocumentProxy, index: number, width
   return new Promise((res) => canvas.toBlob((b) => res(b ?? undefined), 'image/jpeg', 0.86))
 }
 
-export async function renderPageCanvas(doc: PDFDocumentProxy, index: number, width: number) {
+async function renderPageCanvas(doc: PDFDocumentProxy, index: number, width: number) {
   const page = await doc.getPage(index + 1)
   const base = page.getViewport({ scale: 1 })
   const viewport = page.getViewport({ scale: width / base.width })

@@ -1,11 +1,11 @@
 import type { Book, HistoryEntry } from '../types'
 
 const pad = (n: number) => String(n).padStart(2, '0')
-export const dayKey = (t: number | Date) => { const d = new Date(t); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` }
+const dayKey = (t: number | Date) => { const d = new Date(t); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` }
 const DAY = 86400000
 
 /** Seconds read per local day. Any reading session counts (a paper-book page update without minutes counts as a day read). */
-export function readingDays(history: HistoryEntry[]) {
+function readingDays(history: HistoryEntry[]) {
   const m = new Map<string, number>()
   for (const h of history) {
     if (h.type !== 'sesion') continue
@@ -15,7 +15,7 @@ export function readingDays(history: HistoryEntry[]) {
   return m
 }
 
-export interface StreakInfo {
+interface StreakInfo {
   current: number
   best: number
   readToday: boolean

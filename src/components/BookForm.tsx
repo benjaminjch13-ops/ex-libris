@@ -194,7 +194,7 @@ export function BookForm({ book, onClose, onDelete, kind: initialKind, preset, o
     >
       {!editing && !preset?.title && (
         <div className="seg" role="radiogroup" aria-label="Tipo de libro">
-          <button type="button" role="radio" aria-checked={kind === 'digital'} onClick={() => { setKind('digital'); setScan(null) }}>Archivo EPUB o PDF</button>
+          <button type="button" role="radio" aria-checked={kind === 'digital'} onClick={() => { setKind('digital'); setScan(null) }}>EPUB o PDF</button>
           <button type="button" role="radio" aria-checked={kind === 'fisico'} onClick={() => setKind('fisico')}>Libro de papel</button>
         </div>
       )}

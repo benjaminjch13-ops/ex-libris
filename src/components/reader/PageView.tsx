@@ -4,7 +4,7 @@ import type { PageRef, TextBox } from './pagination'
 import type { PDFDocumentProxy } from '../../lib/pdf'
 import { TitlePage } from '../Stage'
 
-export type Side = 'l' | 'r' | 's'
+type Side = 'l' | 'r' | 's'
 
 interface Props {
   page: PageRef

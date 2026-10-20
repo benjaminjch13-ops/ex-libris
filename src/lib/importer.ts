@@ -4,7 +4,7 @@ import { paletteFor, paletteFromImage } from './color'
 
 export const MAX_FILE_MB = 150
 
-export interface FileInfo {
+interface FileInfo {
   format: 'epub' | 'pdf'
   title?: string
   author?: string

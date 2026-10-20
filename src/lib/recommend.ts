@@ -5,13 +5,13 @@ import { hash } from './color'
 
 export type { RecBook }
 
-export const norm = (s: string) => s.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().replace(/\(.*?\)/g, '').replace(/[^a-z0-9]+/g, ' ').trim()
+const norm = (s: string) => s.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().replace(/\(.*?\)/g, '').replace(/[^a-z0-9]+/g, ' ').trim()
 const surname = (a: string) => norm(a.split(/,| y /)[0]).split(' ').pop() ?? ''
 export const recKey = (r: { t: string; a: string }) => `${norm(r.t)}|${surname(r.a)}`
 
 export interface RecPrefs { genres: string[]; short: boolean }
 
-export interface Profile {
+interface Profile {
   /** 0..1 affinity per genre */
   genres: Map<string, number>
   likedAuthors: Set<string>
@@ -91,7 +91,7 @@ export interface Rec { book: RecBook; score: number; reason: string; key: string
 const daySeed = () => Math.floor(Date.now() / 86400000)
 const jitter = (k: string, salt = 0) => ((hash(`${k}:${daySeed() + salt}`) % 1000) / 1000)
 
-export function scoreAll(p: Profile, dismissed: Set<string>, salt = 0): Rec[] {
+function scoreAll(p: Profile, dismissed: Set<string>, salt = 0): Rec[] {
   const out: Rec[] = []
   for (const b of CATALOG) {
     const key = recKey(b)
@@ -132,7 +132,7 @@ function reasonFor(b: RecBook, x: { gAff: number; sameAuthor: boolean; vibe: num
   return 'Para descubrir algo distinto'
 }
 
-export interface Shelf { id: string; title: string; sub?: string; items: Rec[] }
+interface Shelf { id: string; title: string; sub?: string; items: Rec[] }
 
 const ADJACENT: Record<string, string[]> = {
   'Novela': ['Relatos', 'Memorias y biografía', 'Poesía'],
@@ -206,7 +206,7 @@ export function buildShelves(p: Profile, dismissed: Set<string>, salt = 0): Shel
 
 // ---------- where to find it ----------
 
-export interface Where { store: string; url: string; note?: string }
+interface Where { store: string; url: string; note?: string }
 
 export function whereToFind(b: { t: string; a: string; tags?: string }): Where[] {
   const q = encodeURIComponent(`${b.t.replace(/\s*\(.*?\)\s*/g, ' ').trim()} ${b.a.split(/,| y /)[0]}`)
