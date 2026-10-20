@@ -8,6 +8,8 @@ import { useLibrary } from '../state/library'
 import { useLiteMotion, useViewport, relTime, fmtSize } from '../lib/hooks'
 import { BookOpen, ChevronLeft, Close, Edit, Heart } from './Icons'
 import { Stars } from './ReviewDialog'
+import { editionLabel, isManual } from './Flows'
+import { DROP_REASONS } from '../types'
 
 export type StagePhase = 'enter' | 'preview' | 'opening' | 'return' | 'leaving'
 
@@ -19,6 +21,8 @@ interface Props {
   onClosed: () => void
   onEdit: () => void
   onReview: () => void
+  onPage: () => void
+  onDrop: () => void
 }
 
 export function TitlePage({ book }: { book: Book }) {
@@ -47,8 +51,10 @@ function useGeometry() {
   }, [w, h])
 }
 
-export function Stage({ book, origin, initial, onRead, onClosed, onEdit, onReview }: Props) {
-  const { toggleFavorite, setStatus } = useLibrary()
+export function Stage({ book, origin, initial, onRead, onClosed, onEdit, onReview, onPage, onDrop }: Props) {
+  const { toggleFavorite, setStatus, tbr, addToTbr, removeFromTbr, notify } = useLibrary()
+  const manual = isManual(book)
+  const tbrPos = tbr.indexOf(book.id)
   const { lite } = useLiteMotion()
   const g = useGeometry()
   const [phase, setPhase] = useState<StagePhase>(initial === 'enter' ? 'enter' : 'return')
@@ -225,12 +231,19 @@ export function Stage({ book, origin, initial, onRead, onClosed, onEdit, onRevie
             <button className="desc-more" onClick={() => setDescOpen((v) => !v)} aria-expanded={descOpen}>{descOpen ? 'Ver menos' : 'Leer descripción completa'}</button>
           )}
           <dl className="facts">
-            {book.pages ? <div><dt>Páginas</dt><dd>{book.format === 'pdf' || book.format === 'catalogo' ? book.pages : `≈ ${book.pages}`}</dd></div> : null}
+            {book.pages ? <div><dt>Páginas</dt><dd>{book.format === 'pdf' || book.format === 'catalogo' || book.format === 'fisico' ? book.pages : `≈ ${book.pages}`}</dd></div> : null}
+            {book.isbn ? <div><dt>ISBN</dt><dd>{book.isbn}</dd></div> : null}
             {book.year ? <div><dt>Publicado</dt><dd>{book.year < 0 ? `${-book.year} a. C.` : book.year}</dd></div> : null}
-            <div><dt>Formato</dt><dd>{book.format === 'demo' ? 'Edición de muestra' : book.format === 'catalogo' ? 'Sin archivo' : book.format.toUpperCase()}{book.fileSize ? ` · ${fmtSize(book.fileSize)}` : ''}</dd></div>
+            <div><dt>Formato</dt><dd>{manual ? editionLabel(book) : book.format === 'demo' ? 'Edición de muestra' : book.format === 'catalogo' ? 'Sin archivo' : book.format.toUpperCase()}{book.fileSize ? ` · ${fmtSize(book.fileSize)}` : ''}</dd></div>
             <div><dt>Añadido</dt><dd>{relTime(book.addedAt)}</dd></div>
             {book.progress ? <div><dt>Progreso</dt><dd>{pct}% · pág. {book.progress.page}</dd></div> : null}
           </dl>
+          {book.status === 'abandonado' && book.dropped && (
+            <div className="dropped-note">
+              <span className="rt-label">Lo dejaste {book.dropped.page ? `en la página ${book.dropped.page}` : ''} · {relTime(book.dropped.at)}</span>
+              <span>{DROP_REASONS.find((r) => r.key === book.dropped!.reason)?.label}{book.dropped.note ? ` — “${book.dropped.note}”` : ''}</span>
+            </div>
+          )}
           {book.status === 'terminado' && (
             <button className="review-teaser" onClick={onReview}>
               <span className="rt-label">{hasReview ? 'Mi reseña' : 'Lo terminaste · ¿qué te pareció?'}</span>
@@ -241,8 +254,16 @@ export function Stage({ book, origin, initial, onRead, onClosed, onEdit, onRevie
             </button>
           )}
           <div className="preview-actions">
-            {book.format === 'catalogo' ? (
+            {manual ? (
+              book.status === 'leyendo' ? (
+                <button ref={primary} className="btn btn-gold" onClick={onPage}><BookOpen size={16} /> Anotar mi página</button>
+              ) : book.status === 'terminado' ? null : (
+                <button ref={primary} className="btn btn-gold" onClick={() => { setStatus(book.id, 'leyendo'); notify(book.status === 'abandonado' ? '¡Segunda oportunidad! Anota tu página cuando quieras.' : '¡A leer! Anota tu página cuando quieras.') }}><BookOpen size={16} /> {book.status === 'abandonado' ? 'Retomarlo' : 'Empezar a leer'}</button>
+              )
+            ) : book.format === 'catalogo' ? (
               <button ref={primary} className="btn btn-gold" onClick={onEdit}><BookOpen size={16} /> Añadir archivo para leer</button>
+            ) : hasProgress && book.status === 'abandonado' ? (
+              <button ref={primary} className="btn btn-gold" onClick={() => read(false)}><BookOpen size={16} /> Retomar donde lo dejé</button>
             ) : hasProgress ? (
               <>
                 <button ref={primary} className="btn btn-gold" onClick={() => read(false)}><BookOpen size={16} /> Continuar leyendo</button>
@@ -255,12 +276,19 @@ export function Stage({ book, origin, initial, onRead, onClosed, onEdit, onRevie
           </div>
           <div className="preview-actions" style={{ marginTop: 0 }}>
             <label className="sr-only" htmlFor="pv-status">Estado de lectura</label>
-            <select id="pv-status" className="select" value={book.status} onChange={(e) => setStatus(book.id, e.target.value as Status)}>
+            <select id="pv-status" className="select" value={book.status} onChange={(e) => (e.target.value === 'abandonado' ? onDrop() : setStatus(book.id, e.target.value as Status))}>
               <option value="pendiente">Pendiente</option>
               <option value="leyendo">Leyendo</option>
               <option value="terminado">Terminado</option>
+              <option value="abandonado">Abandonado</option>
             </select>
+            {(book.status === 'pendiente' || book.status === 'abandonado') && (
+              <button className="chip" aria-pressed={tbrPos >= 0} onClick={() => (tbrPos >= 0 ? (removeFromTbr(book.id), notify('Quitado de «Por leer»')) : (addToTbr(book.id), notify(`En «Por leer», puesto ${tbr.length + 1}`)))}>
+                {tbrPos >= 0 ? `✓ Por leer · ${tbrPos + 1}º` : '+ Por leer'}
+              </button>
+            )}
             <button className="chip" onClick={onEdit}><Edit size={13} /> Editar datos</button>
+            {book.status === 'leyendo' && <button className="chip" onClick={onDrop}>Dejar este libro</button>}
             {book.sourceUrl && <a className="chip" href={book.sourceUrl} target="_blank" rel="noopener noreferrer">Ver origen ↗</a>}
           </div>
           {book.format === 'catalogo' && <p className="catalog-note">Este libro todavía no tiene archivo. Sube el EPUB o PDF para poder leerlo aquí.</p>}

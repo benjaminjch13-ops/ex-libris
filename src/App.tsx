@@ -12,9 +12,22 @@ import { ReviewDialog } from './components/ReviewDialog'
 import { Stats } from './components/Stats'
 import { ConfirmDialog, Modal } from './components/Modal'
 import { applyFilters, EMPTY_FILTERS, type Filters } from './lib/filters'
-import { Check, Clock, Close, Plus, Search, Settings as SettingsIcon, Books, BarChart } from './components/Icons'
+import { Check, Clock, Close, Plus, Search, Settings as SettingsIcon, Books, BarChart, Queue, Bag, More, Shelf } from './components/Icons'
+import { Tbr } from './components/Tbr'
+import { Wishlist, type SharedIn } from './components/Wishlist'
+import { DropDialog, NextUpDialog, PageDialog, isManual } from './components/Flows'
+import type { AddKind } from './components/BookForm'
 
-type View = 'library' | 'collection' | 'history' | 'stats'
+type View = 'library' | 'collection' | 'history' | 'stats' | 'tbr' | 'wishlist'
+
+/** Android share sheet → `?share=1&url=…&text=…&title=…` (manifest share_target) */
+function readShare(): SharedIn | null {
+  const p = new URLSearchParams(window.location.search)
+  if (!p.has('share')) return null
+  const shared = { url: p.get('url') ?? undefined, text: p.get('text') ?? undefined, title: p.get('title') ?? undefined }
+  window.history.replaceState(null, '', window.location.pathname)
+  return shared
+}
 
 export default function App() {
   return (
@@ -25,12 +38,17 @@ export default function App() {
 }
 
 function Shell() {
-  const { ready, books, settings, removeBook, notify, persistent, toasts } = useLibrary()
-  const [view, setView] = useState<View>('library')
+  const { ready, books, settings, removeBook, notify, persistent, toasts, setStatus, wishBought } = useLibrary()
+  const [shared, setShared] = useState<SharedIn | null>(readShare)
+  const [view, setView] = useState<View>(() => (shared ? 'wishlist' : 'library'))
+  const [drop, setDrop] = useState<Book | null>(null)
+  const [pageFor, setPageFor] = useState<Book | null>(null)
+  const [nextUp, setNextUp] = useState<string | null>(null)
+  const [more, setMore] = useState(false)
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS)
   const [stage, setStage] = useState<{ id: string; origin: OpenOrigin; initial: 'enter' | 'return'; n: number } | null>(null)
   const [reading, setReading] = useState<{ id: string; fromStart: boolean } | null>(null)
-  const [form, setForm] = useState<{ book?: Book } | null>(null)
+  const [form, setForm] = useState<{ book?: Book; kind?: AddKind; preset?: Partial<Book>; onSaved?: (b: Book) => void } | null>(null)
   const [confirmDel, setConfirmDel] = useState<Book | null>(null)
   const [showSettings, setShowSettings] = useState(false)
   const [review, setReview] = useState<{ id: string; justFinished?: boolean } | null>(null)
@@ -76,6 +94,21 @@ function Shell() {
     setStage({ id, origin: { rect: new DOMRect(), pose: 'spine' }, initial: 'return', n: Date.now() })
   }, [reading])
 
+  /** Start the next book: paper books just change state; digital ones open their preview. */
+  const startBook = useCallback((b: Book) => {
+    if (isManual(b)) {
+      setStatus(b.id, 'leyendo')
+      notify(`¡A leer «${b.title}»! Anota tu página cuando quieras.`)
+      setView('library')
+      return
+    }
+    const w = window.innerWidth, h = window.innerHeight
+    setView('library')
+    open(b, { rect: new DOMRect(w / 2 - 60, h / 2 - 90, 120, 180), pose: 'flat' })
+  }, [open, setStatus, notify])
+
+  const go = (v: View) => { setMore(false); setView(view === v ? 'library' : v) }
+
   const doDelete = async (b: Book) => {
     setConfirmDel(null)
     setForm(null)
@@ -111,11 +144,13 @@ function Shell() {
             />
             {filters.q && <button className="icon-btn" style={{ width: 24, height: 24 }} onClick={() => setFilters({ ...filters, q: '' })} aria-label="Borrar búsqueda"><Close size={14} /></button>}
           </label>
-          <nav style={{ display: 'flex', gap: 4, alignItems: 'center' }} aria-label="Secciones">
-            <button className="icon-btn" aria-pressed={view === 'collection'} onClick={() => setView(view === 'collection' ? 'library' : 'collection')} aria-label="Colección completa" title="Colección completa"><Books /></button>
-            <button className="icon-btn" aria-pressed={view === 'stats'} onClick={() => setView(view === 'stats' ? 'library' : 'stats')} aria-label="Estadísticas por género" title="Estadísticas por género"><BarChart /></button>
-            <button className="icon-btn" aria-pressed={view === 'history'} onClick={() => setView(view === 'history' ? 'library' : 'history')} aria-label="Historial de lectura" title="Historial de lectura"><Clock /></button>
-            <button className="icon-btn" onClick={() => setShowSettings(true)} aria-label="Preferencias" title="Preferencias"><SettingsIcon /></button>
+          <nav className="topnav" aria-label="Secciones">
+            <button className="icon-btn hide-sm" aria-pressed={view === 'tbr'} onClick={() => go('tbr')} aria-label="Por leer" title="Por leer"><Queue /></button>
+            <button className="icon-btn hide-sm" aria-pressed={view === 'wishlist'} onClick={() => go('wishlist')} aria-label="Wishlist" title="Wishlist"><Bag /></button>
+            <button className="icon-btn hide-sm" aria-pressed={view === 'collection'} onClick={() => go('collection')} aria-label="Colección completa" title="Colección completa"><Books /></button>
+            <button className="icon-btn hide-sm" aria-pressed={view === 'stats'} onClick={() => go('stats')} aria-label="Estadísticas por género" title="Estadísticas por género"><BarChart /></button>
+            <button className="icon-btn hide-sm" aria-pressed={view === 'history'} onClick={() => go('history')} aria-label="Historial de lectura" title="Historial de lectura"><Clock /></button>
+            <button className="icon-btn hide-sm" onClick={() => setShowSettings(true)} aria-label="Preferencias" title="Preferencias"><SettingsIcon /></button>
             <button className="btn btn-gold" onClick={() => setForm({})} aria-label="Añadir libro"><Plus size={16} /><span className="hide-sm">Añadir libro</span></button>
           </nav>
         </header>
@@ -138,6 +173,9 @@ function Shell() {
                   onOpen={open}
                   onAdd={() => setForm({})}
                   onCollection={() => setView('collection')}
+                  onStart={startBook}
+                  onTbr={() => setView('tbr')}
+                  onDrop={setDrop}
                 />
               )}
               {view === 'collection' && (
@@ -151,6 +189,17 @@ function Shell() {
                   onDelete={(b) => setConfirmDel(b)}
                   onPreview={openFromElement}
                   onReview={(b) => setReview({ id: b.id })}
+                  onDrop={setDrop}
+                  onPage={setPageFor}
+                />
+              )}
+              {view === 'tbr' && <Tbr onBack={() => setView('library')} onStart={startBook} onOpenBook={openFromElement} onWishlist={() => setView('wishlist')} />}
+              {view === 'wishlist' && (
+                <Wishlist
+                  onBack={() => setView('library')}
+                  shared={shared}
+                  onSharedDone={() => setShared(null)}
+                  onBuyDigital={(preset, wishId, keep) => setForm({ kind: 'digital', preset, onSaved: (b) => wishBought(wishId, b.id, keep) })}
                 />
               )}
               {view === 'history' && <History onBack={() => setView('library')} />}
@@ -176,6 +225,8 @@ function Shell() {
           }}
           onEdit={() => setForm({ book: stageBook })}
           onReview={() => setReview({ id: stageBook.id })}
+          onPage={() => setPageFor(stageBook)}
+          onDrop={() => setDrop(stageBook)}
         />
       )}
 
@@ -185,7 +236,7 @@ function Shell() {
 
       <AnimatePresence>
         {form && (
-          <BookForm key={form.book?.id ?? 'new'} book={form.book} onClose={() => setForm(null)} onDelete={(b) => setConfirmDel(b)} />
+          <BookForm key={form.book?.id ?? 'new'} book={form.book} kind={form.kind} preset={form.preset} onSaved={form.onSaved} onClose={() => setForm(null)} onDelete={(b) => setConfirmDel(b)} />
         )}
       </AnimatePresence>
 
@@ -203,11 +254,41 @@ function Shell() {
 
       <AnimatePresence>
         {review && books.find((b) => b.id === review.id) && (
-          <ReviewDialog key={review.id} book={books.find((b) => b.id === review.id)!} justFinished={review.justFinished} onClose={() => setReview(null)} />
+          <ReviewDialog key={review.id} book={books.find((b) => b.id === review.id)!} justFinished={review.justFinished} onClose={() => { if (review.justFinished) setNextUp(review.id); setReview(null) }} />
         )}
       </AnimatePresence>
 
       <AnimatePresence>{showSettings && <SettingsDialog onClose={() => setShowSettings(false)} />}</AnimatePresence>
+      <AnimatePresence>
+        {drop && <DropDialog key={drop.id} book={books.find((b) => b.id === drop.id) ?? drop} onClose={() => setDrop(null)} onDropped={(id) => { if (stage?.id === id) setStage(null); setNextUp(id) }} />}
+      </AnimatePresence>
+      <AnimatePresence>
+        {pageFor && <PageDialog key={pageFor.id} book={books.find((b) => b.id === pageFor.id) ?? pageFor} onClose={() => setPageFor(null)} onFinished={(id) => setReview({ id, justFinished: true })} />}
+      </AnimatePresence>
+      <AnimatePresence>
+        {nextUp && <NextUpDialog afterId={nextUp} onClose={() => setNextUp(null)} onStart={(b) => { setStage(null); startBook(b) }} onGoTbr={() => { setStage(null); setView('tbr') }} />}
+      </AnimatePresence>
+
+      {/* phone: sections live in a bottom bar, like an app */}
+      <nav className="tabbar" aria-label="Secciones">
+        {([['library', 'Estantería', Shelf], ['tbr', 'Por leer', Queue], ['wishlist', 'Wishlist', Bag], ['collection', 'Colección', Books]] as const).map(([v, label, Icon]) => (
+          <button key={v} aria-current={view === v && !more ? 'page' : undefined} onClick={() => { setMore(false); setView(v) }}><Icon size={20} /><span>{label}</span></button>
+        ))}
+        <button aria-expanded={more} aria-current={more || view === 'stats' || view === 'history' ? 'page' : undefined} onClick={() => setMore((m) => !m)}><More size={20} /><span>Más</span></button>
+      </nav>
+      <AnimatePresence>
+        {more && (
+          <>
+            <motion.div className="sheet-back" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setMore(false)} />
+            <motion.div className="sheet" role="menu" initial={{ y: 30, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 30, opacity: 0 }} transition={{ duration: 0.22 }}>
+              <button role="menuitem" onClick={() => { setMore(false); setView('stats') }}><BarChart /> Estadísticas</button>
+              <button role="menuitem" onClick={() => { setMore(false); setView('history') }}><Clock /> Historial de lectura</button>
+              <button role="menuitem" onClick={() => { setMore(false); setShowSettings(true) }}><SettingsIcon /> Preferencias</button>
+              {installEvt && <button role="menuitem" onClick={() => { setMore(false); install() }}><Plus /> Instalar app</button>}
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
 
       <div className="toasts" aria-live="polite">
         <AnimatePresence>

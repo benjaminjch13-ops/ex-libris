@@ -1,5 +1,17 @@
-export type Status = 'pendiente' | 'leyendo' | 'terminado'
-export type BookFormat = 'epub' | 'pdf' | 'demo' | 'catalogo'
+export type Status = 'pendiente' | 'leyendo' | 'terminado' | 'abandonado'
+/** fisico: a paper copy the reader owns; progress is entered by hand */
+export type BookFormat = 'epub' | 'pdf' | 'demo' | 'catalogo' | 'fisico'
+
+export type DropReason = 'no-engancho' | 'estilo' | 'momento' | 'lento' | 'contenido' | 'otro'
+
+export const DROP_REASONS: { key: DropReason; label: string }[] = [
+  { key: 'no-engancho', label: 'No me enganchó' },
+  { key: 'estilo', label: 'No me gustó el estilo' },
+  { key: 'momento', label: 'No es el momento' },
+  { key: 'lento', label: 'Muy largo o lento' },
+  { key: 'contenido', label: 'Contenido que no esperaba' },
+  { key: 'otro', label: 'Otro motivo' },
+]
 
 export interface Palette {
   bg: string
@@ -75,6 +87,32 @@ export interface Book {
   genre?: string
   /** where the entry came from (an external list or catalogue) */
   sourceUrl?: string
+  isbn?: string
+  /** bought in a reading app (Kindle, Apple Books…): tracked by hand like a paper book */
+  app?: string
+  /** remote cover (catalogue lookup) used when the image could not be stored locally */
+  coverRemote?: string
+  /** why and where the reader left the book */
+  dropped?: { reason: DropReason; note?: string; at: number; page?: number; percent?: number }
+  /** the reader said "keep going" to the inactivity nudge; don't ask again before this */
+  nudgeAfter?: number
+}
+
+export interface WishLink { url: string; store: string; price?: string }
+
+export interface WishItem {
+  id: string
+  title: string
+  author: string
+  coverRemote?: string
+  isbn?: string
+  pages?: number
+  year?: number
+  description?: string
+  genre?: string
+  links: WishLink[]
+  note?: string
+  addedAt: number
 }
 
 export interface HistoryEntry {
@@ -82,7 +120,7 @@ export interface HistoryEntry {
   bookId: string
   title: string
   author: string
-  type: 'sesion' | 'terminado' | 'agregado'
+  type: 'sesion' | 'terminado' | 'agregado' | 'abandonado'
   at: number
   fromPage?: number
   toPage?: number
@@ -119,4 +157,5 @@ export const STATUS_LABEL: Record<Status, string> = {
   pendiente: 'Pendiente',
   leyendo: 'Leyendo',
   terminado: 'Terminado',
+  abandonado: 'Abandonado',
 }

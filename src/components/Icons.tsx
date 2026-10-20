@@ -33,3 +33,7 @@ export const BarChart = ({ size, ...p }: P) => <svg {...base(size)} {...p}><path
 export const Highlighter = ({ size, ...p }: P) => <svg {...base(size)} {...p}><path d="m9 15 6.5-6.5a2.1 2.1 0 0 0-3-3L6 12l-1.5 4.5L9 15Z" /><path d="m4.5 16.5-1.5 3h4.5l1-2" /><path d="M13 20h8" /></svg>
 export const OnePage = ({ size, ...p }: P) => <svg {...base(size)} {...p}><rect x="6.5" y="3.5" width="11" height="17" rx="1.5" /><path d="M9.5 8h5M9.5 11h5M9.5 14h3" /></svg>
 export const TwoPages = ({ size, ...p }: P) => <svg {...base(size)} {...p}><path d="M12 5.5C10 4.5 6.5 4 3 4.5v14c3.5-.5 7 0 9 1 2-1 5.5-1.5 9-1v-14c-3.5-.5-7 0-9 1Z" /><path d="M12 5.5v14" /></svg>
+export const Queue = ({ size, ...p }: P) => <svg {...base(size)} {...p}><path d="M4 6h11M4 12h11M4 18h7" /><path d="m16 15 3 3-3 3" /><path d="M19 18h-5" /></svg>
+export const Bag = ({ size, ...p }: P) => <svg {...base(size)} {...p}><path d="M5 8h14l-1 12H6L5 8Z" /><path d="M9 10V6.5a3 3 0 0 1 6 0V10" /></svg>
+export const More = ({ size, ...p }: P) => <svg {...base(size)} {...p}><circle cx="5.5" cy="12" r="1.3" fill="currentColor" /><circle cx="12" cy="12" r="1.3" fill="currentColor" /><circle cx="18.5" cy="12" r="1.3" fill="currentColor" /></svg>
+export const Shelf = ({ size, ...p }: P) => <svg {...base(size)} {...p}><path d="M3 20h18M5 20V6h3v14M9.5 20V4h3v16M14 20l1.5-14 3 .3L17 20" /></svg>

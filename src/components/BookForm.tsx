@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from 'react'
+import { AnimatePresence, motion } from 'motion/react'
 import type { Book, Status } from '../types'
 import { useLibrary } from '../state/library'
 import { inspectFile, emptyBook, paletteForBook, MAX_FILE_MB } from '../lib/importer'
@@ -8,13 +9,31 @@ import { Modal } from './Modal'
 import { Cover } from './BookArt'
 import { Trash, Upload } from './Icons'
 import { GENRES } from '../lib/genres'
+import { Scanner } from './Scanner'
+import { Finder } from './Finder'
+import { fetchCoverBlob, lookupIsbn, type CatalogHit } from '../lib/lookup'
+
+export type AddKind = 'digital' | 'fisico'
 
 const BASE_CATEGORIES = ['Novela', 'Relatos', 'Poesía', 'Ensayo', 'Historia', 'Divulgación', 'Misterio', 'Biografía', 'Filosofía', 'Fantasía', 'Ciencia ficción', 'Infantil', 'Técnico']
 
-export function BookForm({ book, onClose, onDelete }: { book?: Book; onClose: () => void; onDelete?: (b: Book) => void }) {
-  const { books, saveBook, notify, coverUrl, addHistory } = useLibrary()
+export function BookForm({ book, onClose, onDelete, kind: initialKind, preset, onSaved }: {
+  book?: Book
+  onClose: () => void
+  onDelete?: (b: Book) => void
+  kind?: AddKind
+  /** fields already known (a wishlist entry that was bought) */
+  preset?: Partial<Book>
+  onSaved?: (b: Book) => void
+}) {
+  const { books, saveBook, notify, coverUrl, addHistory, addToTbr } = useLibrary()
   const editing = !!book
-  const [draft, setDraft] = useState<Book>(() => book ? { ...book } : emptyBook(uid()))
+  const [kind, setKind] = useState<AddKind>(book ? (book.format === 'fisico' ? 'fisico' : 'digital') : initialKind ?? 'digital')
+  const [draft, setDraft] = useState<Book>(() => book ? { ...book } : { ...emptyBook(uid()), ...preset })
+  const [scan, setScan] = useState<null | 'one' | 'many'>(null)
+  const [looking, setLooking] = useState(false)
+  const [batch, setBatch] = useState<{ isbn: string; title?: string; state: 'busy' | 'ok' | 'dup' | 'miss' }[]>([])
+  const [batchTbr, setBatchTbr] = useState(false)
   const [file, setFile] = useState<File | null>(null)
   const [coverTouched, setCoverTouched] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -59,6 +78,59 @@ export function BookForm({ book, onClose, onDelete }: { book?: Book; onClose: ()
     }
   }
 
+  /** Fill the form from a catalogue result; the cover is stored locally when the host allows it. */
+  async function applyHit(h: CatalogHit) {
+    setDraft((d) => ({
+      ...d,
+      title: h.title || d.title,
+      author: h.author || d.author,
+      pages: h.pages ?? d.pages,
+      year: h.year ?? d.year,
+      isbn: h.isbn ?? d.isbn,
+      description: d.description || h.description || '',
+      genre: d.genre || h.genre,
+      coverRemote: coverTouched ? d.coverRemote : h.cover,
+      coverBlob: coverTouched ? d.coverBlob : undefined,
+    }))
+    if (!coverTouched && h.cover) {
+      const blob = await fetchCoverBlob(h.cover)
+      if (blob) setDraft((d) => (d.coverRemote === h.cover ? { ...d, coverBlob: blob, coverRemote: undefined } : d))
+    }
+  }
+
+  async function scanned(isbn: string) {
+    setScan(null)
+    setLooking(true)
+    const h = await lookupIsbn(isbn).catch(() => undefined)
+    setLooking(false)
+    if (h) { await applyHit(h); notify(`Encontré «${h.title}»`) }
+    else { set({ isbn }); notify('No encontré ese ISBN en los catálogos; escribe los datos a mano.', 'error') }
+  }
+
+  /** "Escanear varios": every code becomes a paper book on the shelf straight away. */
+  async function scannedMany(isbn: string) {
+    if (books.some((b) => b.isbn === isbn) || batch.some((x) => x.isbn === isbn)) {
+      setBatch((l) => (l.some((x) => x.isbn === isbn) ? l : [{ isbn, title: books.find((b) => b.isbn === isbn)?.title, state: 'dup' }, ...l]))
+      return
+    }
+    setBatch((l) => [{ isbn, state: 'busy' }, ...l])
+    const h = await lookupIsbn(isbn).catch(() => undefined)
+    if (!h) { setBatch((l) => l.map((x) => (x.isbn === isbn ? { ...x, state: 'miss' } : x))); return }
+    const coverBlob = await fetchCoverBlob(h.cover)
+    const b: Book = {
+      ...emptyBook(uid()),
+      format: 'fisico',
+      title: h.title, author: h.author || 'Autor desconocido', pages: h.pages, year: h.year, isbn,
+      description: h.description ?? '', genre: h.genre, category: 'Sin categoría',
+      coverBlob, coverRemote: coverBlob ? undefined : h.cover,
+      palette: await paletteForBook(h.title, coverBlob),
+    }
+    await saveBook(b)
+    addHistory({ bookId: b.id, title: b.title, author: b.author, type: 'agregado', at: Date.now() })
+    if (batchTbr) addToTbr(b.id)
+    setBatch((l) => l.map((x) => (x.isbn === isbn ? { ...x, title: h.title, state: 'ok' } : x)))
+  }
+
   async function takeCover(f: File) {
     if (!f.type.startsWith('image/')) { notify('La portada debe ser una imagen (JPG, PNG o WebP).', 'error'); return }
     if (f.size > 12 * 1024 * 1024) { notify('La imagen de portada pesa más de 12 MB.', 'error'); return }
@@ -71,7 +143,7 @@ export function BookForm({ book, onClose, onDelete }: { book?: Book; onClose: ()
     const errs: Record<string, string> = {}
     if (!draft.title.trim()) errs.title = 'Escribe el título.'
     if (!draft.author.trim()) errs.author = 'Escribe el autor o autora.'
-    if (!editing && !file) errs.file = 'Elige un archivo EPUB o PDF.'
+    if (!editing && !file && kind === 'digital') errs.file = 'Elige un archivo EPUB o PDF.'
     setErrors(errs)
     if (Object.keys(errs).length) return
     setBusy(true)
@@ -79,6 +151,7 @@ export function BookForm({ book, onClose, onDelete }: { book?: Book; onClose: ()
       const palette = await paletteForBook(draft.title, draft.coverBlob)
       const final: Book = {
         ...draft,
+        format: kind === 'fisico' ? 'fisico' : draft.format === 'fisico' ? 'epub' : draft.format,
         title: draft.title.trim(),
         author: draft.author.trim(),
         description: draft.description.trim(),
@@ -88,6 +161,7 @@ export function BookForm({ book, onClose, onDelete }: { book?: Book; onClose: ()
         finishedAt: draft.status === 'terminado' ? draft.finishedAt ?? Date.now() : draft.finishedAt,
       }
       await saveBook(final, file ?? undefined)
+      onSaved?.(final)
       notify(editing ? 'Cambios guardados' : `«${final.title}» ya está en la estantería`)
       if (!editing) {
         addHistory({ bookId: final.id, title: final.title, author: final.author, type: 'agregado', at: Date.now() })
@@ -102,33 +176,76 @@ export function BookForm({ book, onClose, onDelete }: { book?: Book; onClose: ()
   }
 
   const previewBook: Book = { ...draft, title: draft.title || 'Título del libro', author: draft.author || 'Autor', category: draft.category }
-  const hasCover = !!draft.coverBlob && !!coverUrl(draft)
+  const hasCover = !!coverUrl(draft)
+  const added = batch.filter((x) => x.state === 'ok').length
 
   return (
     <Modal
-      title={editing ? 'Editar libro' : 'Añadir un libro'}
+      title={editing ? 'Editar libro' : scan === 'many' ? 'Escanear varios libros' : 'Añadir un libro'}
       onClose={onClose}
       footer={<>
+        {scan === 'many' ? <button type="button" className="btn btn-gold" onClick={() => { setScan(null); if (added) onClose() }}>{added ? `Listo · ${added} ${added === 1 ? 'libro añadido' : 'libros añadidos'}` : 'Cerrar escáner'}</button> : <>
         {editing && onDelete && <button type="button" className="btn" style={{ marginRight: 'auto', color: 'var(--danger)' }} onClick={() => onDelete(book!)}><Trash size={15} /> Eliminar</button>}
         <button type="button" className="btn" onClick={onClose}>Cancelar</button>
         <button type="submit" form="book-form" className="btn btn-gold" disabled={busy || inspecting}>
           {busy ? <span className="spin" /> : null}{editing ? 'Guardar cambios' : 'Colocar en la estantería'}
         </button>
-      </>}
+      </>}</>}
     >
-      <form id="book-form" onSubmit={submit} noValidate>
+      {!editing && !preset?.title && (
+        <div className="seg" role="radiogroup" aria-label="Tipo de libro">
+          <button type="button" role="radio" aria-checked={kind === 'digital'} onClick={() => { setKind('digital'); setScan(null) }}>Archivo EPUB o PDF</button>
+          <button type="button" role="radio" aria-checked={kind === 'fisico'} onClick={() => setKind('fisico')}>Libro de papel</button>
+        </div>
+      )}
+      <AnimatePresence>
+        {scan && (
+          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} style={{ overflow: 'hidden' }}>
+            <Scanner continuous={scan === 'many'} onCode={scan === 'many' ? scannedMany : scanned} onClose={() => setScan(null)}>
+              {scan === 'many' && (
+                <>
+                  <label className="check"><input type="checkbox" checked={batchTbr} onChange={(e) => setBatchTbr(e.target.checked)} /> Añadirlos también a mi lista «Por leer»</label>
+                  {batch.length > 0 && (
+                    <ul className="batch" aria-live="polite">
+                      {batch.map((x) => (
+                        <li key={x.isbn} className={`b-${x.state}`}>
+                          <span>{x.state === 'busy' ? <span className="spin" /> : x.state === 'ok' ? '✓' : x.state === 'dup' ? '=' : '?'}</span>
+                          <b>{x.title ?? x.isbn}</b>
+                          <em>{x.state === 'busy' ? 'buscando…' : x.state === 'ok' ? 'en la estantería' : x.state === 'dup' ? 'ya lo tienes' : 'no encontrado; añádelo a mano'}</em>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </>
+              )}
+            </Scanner>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      <form id="book-form" onSubmit={submit} noValidate style={{ display: scan === 'many' ? 'none' : undefined }}>
         <div className="form-grid">
           <div className="cover-col">
             <div className="cover-pick"><Cover book={previewBook} /></div>
             <div className="cover-actions">
               <button type="button" className="btn small-btn" onClick={() => coverInput.current?.click()}><Upload size={14} /> {hasCover ? 'Cambiar portada' : 'Subir portada'}</button>
-              {hasCover && <button type="button" className="btn small-btn" onClick={() => { setCoverTouched(true); set({ coverBlob: undefined }) }}>Quitar</button>}
+              {hasCover && <button type="button" className="btn small-btn" onClick={() => { setCoverTouched(true); set({ coverBlob: undefined, coverRemote: undefined }) }}>Quitar</button>}
             </div>
             <input ref={coverInput} id="bf-cover" className="sr-only-input" type="file" accept="image/*" onChange={(e) => { const f = e.target.files?.[0]; if (f) takeCover(f); e.target.value = '' }} />
             {!hasCover && <p className="field" style={{ marginTop: 10 }}><span className="hint">Sin imagen, la portada se compone con el título y un color de tela.</span></p>}
           </div>
 
           <div className="fields">
+            {kind === 'fisico' ? (
+              <div className="field">
+                <span className="lbl">Buscar el libro</span>
+                <div className="scan-btns">
+                  <button type="button" className="btn btn-gold" onClick={() => setScan('one')} disabled={looking}>{looking ? <span className="spin" /> : <BarcodeIcon />} Escanear código de barras</button>
+                  {!editing && <button type="button" className="btn" onClick={() => setScan('many')}>Escanear varios</button>}
+                </div>
+                <Finder onPick={applyHit} autoQuery={preset?.title} />
+                <span className="hint">Traemos título, autor, páginas y portada de Google Books y Open Library.</span>
+              </div>
+            ) : (
             <div className="field">
               <span className="lbl">Archivo del libro</span>
               <div
@@ -163,6 +280,7 @@ export function BookForm({ book, onClose, onDelete }: { book?: Book; onClose: ()
               <span id="bf-file-hint" className="hint">Hasta {MAX_FILE_MB} MB. Leemos título, autor y portada automáticamente si el archivo los incluye.</span>
               {(fileError || errors.file) && <span className="err" role="alert">{fileError || errors.file}</span>}
             </div>
+            )}
 
             <div className="field">
               <label htmlFor="bf-title">Título</label>
@@ -188,6 +306,22 @@ export function BookForm({ book, onClose, onDelete }: { book?: Book; onClose: ()
                 )}
               </div>
             </div>
+            {kind === 'fisico' && (
+              <div className="row3">
+                <div className="field">
+                  <label htmlFor="bf-pages">Páginas</label>
+                  <input id="bf-pages" inputMode="numeric" value={draft.pages ?? ''} onChange={(e) => set({ pages: Number(e.target.value.replace(/\D/g, '')) || undefined })} />
+                </div>
+                <div className="field">
+                  <label htmlFor="bf-year">Año</label>
+                  <input id="bf-year" inputMode="numeric" value={draft.year ?? ''} onChange={(e) => set({ year: Number(e.target.value.replace(/[^\d-]/g, '')) || undefined })} />
+                </div>
+                <div className="field">
+                  <label htmlFor="bf-isbn">ISBN</label>
+                  <input id="bf-isbn" inputMode="numeric" value={draft.isbn ?? ''} onChange={(e) => set({ isbn: e.target.value.trim() || undefined })} />
+                </div>
+              </div>
+            )}
             <div className="field">
               <label htmlFor="bf-genre">Género</label>
               <select id="bf-genre" value={draft.genre ?? ''} onChange={(e) => set({ genre: e.target.value || undefined })}>
@@ -207,6 +341,7 @@ export function BookForm({ book, onClose, onDelete }: { book?: Book; onClose: ()
                   <option value="pendiente">Pendiente</option>
                   <option value="leyendo">Leyendo</option>
                   <option value="terminado">Terminado</option>
+                  {editing && <option value="abandonado">Abandonado</option>}
                 </select>
               </div>
               <div className="field">
@@ -222,4 +357,8 @@ export function BookForm({ book, onClose, onDelete }: { book?: Book; onClose: ()
       </form>
     </Modal>
   )
+}
+
+function BarcodeIcon() {
+  return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden><path d="M3 7V4h3M21 7V4h-3M3 17v3h3M21 17v3h-3M7 8v8M10 8v8M13 8v8M16.5 8v8" /></svg>
 }

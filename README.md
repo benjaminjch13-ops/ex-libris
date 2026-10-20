@@ -37,6 +37,14 @@ La beta se publica sola en `https://<usuario>.github.io/<repositorio>/` cada vez
   nadie más la ve. Si se borran los datos del navegador, se pierde.
 - Solo abre EPUB y PDF sin DRM.
 
+## Funciones de la beta
+
+- **Libros digitales** (EPUB y PDF) con lector, notas, subrayados y una o dos páginas.
+- **Libros de papel:** escanea el código de barras (ISBN) con la cámara o busca por título; los datos y la portada llegan de Google Books y Open Library. «Escanear varios» añade un estante entero de una pasada. El progreso se anota a mano («¿En qué página vas?»). Sirve también para libros comprados en Kindle, Apple Books, etc.
+- **Wishlist:** pega el enlace de cualquier tienda (Amazon/Kindle, Apple Books, Google Play, Buscalibre…) y se completa sola; un libro puede tener varios enlaces y precios. En Android, «Compartir → Ex Libris» desde la tienda. «Ya lo compré» lo pasa a la biblioteca.
+- **Por leer (TBR):** fila ordenable (arrastrar o flechas), ordenar por géneros alternos, cortos primero, los que más esperan. Al terminar o abandonar un libro, la app propone el siguiente.
+- **Drop it:** abandonar un libro con su motivo y nota; se guarda dónde lo dejaste. Si un libro lleva 3 semanas sin abrirse, la app pregunta si seguir, pausarlo o dejarlo. Estadísticas de abandonos.
+
 ## Estructura
 
 | Ruta | Qué hace |
@@ -48,6 +56,9 @@ La beta se publica sola en `https://<usuario>.github.io/<repositorio>/` cada vez
 | `src/lib/source.ts` | Abre el contenido de cada libro y numera sus párrafos para los subrayados |
 | `src/lib/importer.ts` | Validación de archivos (firma, extensión, tamaño) y extracción de metadatos |
 | `src/lib/genres.ts` | Géneros y su relleno para libros antiguos |
+| `src/lib/lookup.ts` | Catálogos (Google Books, Open Library, iTunes), ISBN y enlaces de tiendas |
+| `src/components/Scanner.tsx` | Lector de códigos de barras (BarcodeDetector o ZXing) |
+| `src/components/Tbr.tsx`, `Wishlist.tsx`, `Flows.tsx` | Por leer, wishlist, página manual, abandonar y «¿sigues con este?» |
 | `src/components/Library.tsx` | Bienvenida, mesa de lectura, filtros, estantería 3D |
 | `src/components/BookArt.tsx` | Libro 3D (tapa, lomo, cantos), portadas y lomos generados |
 | `src/components/Stage.tsx` | Vista previa y animación de apertura/cierre |

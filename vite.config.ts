@@ -58,7 +58,9 @@ export default defineConfig(({ mode }) => {
                 file_handlers: [
                   { action: base, accept: { 'application/epub+zip': ['.epub'], 'application/pdf': ['.pdf'] } },
                 ],
-              },
+                // Android: "Compartir → Ex Libris" from a store app drops the link into the wishlist
+                share_target: { action: `${base}?share=1`, method: 'GET', params: { title: 'title', text: 'text', url: 'url' } },
+              } as Record<string, unknown>,
               workbox: {
                 // the PDF engine ships inside the main bundle, so allow large files in the offline cache
                 maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
@@ -68,6 +70,12 @@ export default defineConfig(({ mode }) => {
                     urlPattern: /^https:\/\/fonts\.(googleapis|gstatic)\.com\/.*/i,
                     handler: 'CacheFirst',
                     options: { cacheName: 'google-fonts', expiration: { maxEntries: 30, maxAgeSeconds: 60 * 60 * 24 * 365 } },
+                  },
+                  {
+                    // catalogue covers shown in the wishlist and search results stay visible offline
+                    urlPattern: /^https:\/\/(covers\.openlibrary\.org|books\.google\.com\/books\/(content|publisher)|is\d-ssl\.mzstatic\.com|archive\.org)\/.*/i,
+                    handler: 'CacheFirst',
+                    options: { cacheName: 'book-covers', expiration: { maxEntries: 400, maxAgeSeconds: 60 * 60 * 24 * 180 }, cacheableResponse: { statuses: [0, 200] } },
                   },
                 ],
               },

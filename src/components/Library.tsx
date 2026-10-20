@@ -6,6 +6,8 @@ import { Book3D, bookDims } from './BookArt'
 import { greeting, relTime, useMedia } from '../lib/hooks'
 import { ChevronRight, Heart, Plus } from './Icons'
 import type { Filters } from '../lib/filters'
+import { staleBook, weeksSince } from './Flows'
+import { TbrNext } from './Tbr'
 
 export interface OpenOrigin {
   rect: DOMRect
@@ -20,15 +22,22 @@ interface Props {
   onOpen: (b: Book, origin: OpenOrigin) => void
   onAdd: () => void
   onCollection: () => void
+  onStart: (b: Book) => void
+  onTbr: () => void
+  onDrop: (b: Book) => void
 }
 
-export function Library({ visible, filters, setFilters, selectedId, onOpen, onAdd, onCollection }: Props) {
-  const { books, settings } = useLibrary()
+export function Library({ visible: all, filters, setFilters, selectedId, onOpen, onAdd, onCollection, onStart, onTbr, onDrop }: Props) {
+  const { books: allBooks, settings, patchBook, setStatus, addToTbr, notify } = useLibrary()
+  // abandoned books live in the collection, not on the shelf
+  const books = useMemo(() => allBooks.filter((b) => b.status !== 'abandonado'), [allBooks])
+  const visible = useMemo(() => all.filter((b) => b.status !== 'abandonado'), [all])
+  const stale = useMemo(() => staleBook(books), [books])
   const small = useMedia('(max-width: 640px)')
 
   const reading = useMemo(
     () => books
-      .filter((b) => b.status === 'leyendo' || (b.progress && b.status !== 'terminado'))
+      .filter((b) => b.status === 'leyendo' || (b.progress && b.status === 'pendiente' && b.format !== 'fisico'))
       .sort((a, b) => (b.lastOpenedAt ?? 0) - (a.lastOpenedAt ?? 0))
       .slice(0, 4),
     [books],
@@ -56,9 +65,9 @@ export function Library({ visible, filters, setFilters, selectedId, onOpen, onAd
           <h1>{greeting()}{name ? <>, <em>{name}</em></> : null}.</h1>
           <p>
             {books.length === 0
-              ? 'Tu biblioteca está vacía. Añade un EPUB o un PDF y aparecerá en la estantería.'
+              ? 'Tu biblioteca está vacía. Añade un EPUB o un PDF, o escanea un libro de papel, y aparecerá en la estantería.'
               : lead
-                ? <>Tienes <em>{lead.title}</em> abierto por la página {lead.progress?.page ?? 1}. Elige un lomo para hojear otro libro.</>
+                ? <>Tienes <em>{lead.title}</em> {lead.progress?.page ? <>abierto por la página {lead.progress.page}</> : 'entre manos'}. Elige un lomo para hojear otro libro.</>
                 : window.matchMedia?.('(hover: none)').matches
                   ? 'Toca un lomo para sacarlo del estante y ver el libro.'
                   : 'Pasa el cursor sobre un lomo para sacarlo del estante; haz clic para abrirlo.'}
@@ -70,6 +79,17 @@ export function Library({ visible, filters, setFilters, selectedId, onOpen, onAd
           <div className="stat"><b>{finished}</b><span>terminados</span></div>
         </div>
       </section>
+
+      {stale && !filtering && (
+        <motion.div className="nudge" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} role="status">
+          <p>Hace {weeksSince(stale)} semanas que no abres <em>{stale.title}</em>. ¿Cómo va?</p>
+          <div className="nudge-acts">
+            <button className="chip" onClick={() => { patchBook(stale.id, { nudgeAfter: Date.now() + 21 * 86400000 }); notify('Perfecto, sigue en tu mesa') }}>Lo sigo leyendo</button>
+            <button className="chip" onClick={() => { setStatus(stale.id, 'pendiente'); addToTbr(stale.id, 'start'); notify('En pausa: quedó primero en «Por leer»') }}>Pausarlo</button>
+            <button className="chip" onClick={() => onDrop(stale)}>Dejarlo</button>
+          </div>
+        </motion.div>
+      )}
 
       {reading.length > 0 && !filtering && (
         <section aria-labelledby="desk-h">
@@ -104,7 +124,11 @@ export function Library({ visible, filters, setFilters, selectedId, onOpen, onAd
             })}
             <div className="desk-ledge" />
           </div>
+          <TbrNext onStart={onStart} onOpen={onTbr} />
         </section>
+      )}
+      {reading.length === 0 && !filtering && books.length > 0 && (
+        <section aria-label="Siguiente lectura"><TbrNext onStart={onStart} onOpen={onTbr} /></section>
       )}
 
       <section aria-labelledby="shelves-h">
@@ -118,7 +142,7 @@ export function Library({ visible, filters, setFilters, selectedId, onOpen, onAd
           {books.length === 0 ? (
             <div className="empty-state">
               <h3>Los estantes esperan su primer libro</h3>
-              <p>Sube un EPUB o un PDF. Leeremos su título, autor y portada para colocarlo en su sitio.</p>
+              <p>Sube un EPUB o un PDF, o escanea el código de barras de un libro de papel. Leeremos su título, autor y portada para colocarlo en su sitio.</p>
               <p className="empty-tip">Tus libros se guardan solo en este dispositivo. ¿No tienes un EPUB a mano? Hay clásicos gratuitos y legales en <a href="https://www.gutenberg.org/browse/languages/es" target="_blank" rel="noopener noreferrer">Project Gutenberg</a>.</p>
               <button className="btn btn-gold" onClick={onAdd}><Plus size={16} /> Añadir libro</button>
             </div>
@@ -304,11 +328,12 @@ function Decor({ kind, scale }: { kind: 'plant' | 'stack'; scale: number }) {
 }
 
 function statusText(s: Status) {
-  return s === 'leyendo' ? 'Leyendo' : s === 'terminado' ? 'Terminado' : 'Pendiente'
+  return s === 'leyendo' ? 'Leyendo' : s === 'terminado' ? 'Terminado' : s === 'abandonado' ? 'Abandonado' : 'Pendiente'
 }
 
-export function FilterBar({ filters, setFilters }: { filters: Filters; setFilters: (f: Filters) => void }) {
-  const { books } = useLibrary()
+export function FilterBar({ filters, setFilters, withDropped }: { filters: Filters; setFilters: (f: Filters) => void; withDropped?: boolean }) {
+  const { books: every } = useLibrary()
+  const books = withDropped ? every : every.filter((b) => b.status !== 'abandonado')
   const categories = [...new Set(books.map((b) => b.category).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es'))
   const authors = [...new Set(books.map((b) => b.author).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es'))
   const count = (s: Status) => books.filter((b) => b.status === s).length
@@ -317,6 +342,7 @@ export function FilterBar({ filters, setFilters }: { filters: Filters; setFilter
     { v: 'leyendo', l: 'Leyendo', n: count('leyendo') },
     { v: 'pendiente', l: 'Pendientes', n: count('pendiente') },
     { v: 'terminado', l: 'Terminados', n: count('terminado') },
+    ...(withDropped && count('abandonado') ? [{ v: 'abandonado' as const, l: 'Abandonados', n: count('abandonado') }] : []),
   ]
   return (
     <div className="filters" role="group" aria-label="Filtros">

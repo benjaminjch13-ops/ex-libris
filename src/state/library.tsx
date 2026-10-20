@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import type { Book, HistoryEntry, Progress, Settings, Status } from '../types'
+import type { Book, DropReason, HistoryEntry, Progress, Settings, Status, WishItem } from '../types'
 import { DEFAULT_SETTINGS, loadSettings, saveSettings, store } from '../lib/db'
 import { genreFromCategory } from '../lib/genres'
 
@@ -21,6 +21,16 @@ interface LibraryCtx {
   saveProgress: (id: string, p: Progress) => Promise<void>
   addHistory: (h: HistoryEntry) => Promise<void>
   updateSettings: (patch: Partial<Settings>) => void
+  /** reading queue: book ids, or `w:<id>` for wishlist entries not bought yet */
+  tbr: string[]
+  setTbr: (ids: string[]) => void
+  addToTbr: (id: string, where?: 'start' | 'end') => void
+  removeFromTbr: (id: string) => void
+  dropBook: (id: string, reason: DropReason, note?: string, retry?: boolean) => Promise<void>
+  wishes: WishItem[]
+  saveWish: (w: WishItem) => void
+  removeWish: (id: string) => void
+  wishBought: (wishId: string, bookId: string, keepInTbr: boolean) => void
   toasts: Toast[]
   notify: (text: string, tone?: Toast['tone']) => void
 }
@@ -40,6 +50,12 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
   const [history, setHistory] = useState<HistoryEntry[]>([])
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS)
   const [toasts, setToasts] = useState<Toast[]>([])
+  const [tbrRaw, setTbrRaw] = useState<string[]>([])
+  const [wishes, setWishes] = useState<WishItem[]>([])
+  const tbrRef = useRef<string[]>([])
+  tbrRef.current = tbrRaw
+  const wishesRef = useRef<WishItem[]>([])
+  wishesRef.current = wishes
   const urls = useRef(new Map<string, { blob: Blob; url: string }>())
   const booksRef = useRef<Book[]>([])
   booksRef.current = books
@@ -60,12 +76,14 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
       setBooks(list)
       setHistory(await s.getHistory().catch(() => []))
       setSettings(await loadSettings())
+      setTbrRaw((await s.getSetting<string[]>('tbr').catch(() => undefined)) ?? [])
+      setWishes((await s.getSetting<WishItem[]>('wishlist').catch(() => undefined)) ?? [])
       setReady(true)
     })()
   }, [])
 
   const coverUrl = useCallback((b: Book) => {
-    if (!b.coverBlob) return undefined
+    if (!b.coverBlob) return b.coverRemote
     const cached = urls.current.get(b.id)
     if (cached && cached.blob === b.coverBlob) return cached.url
     if (cached) URL.revokeObjectURL(cached.url)
@@ -96,6 +114,11 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     const s = await store()
     await s.deleteBook(id)
     setBooks((list) => list.filter((x) => x.id !== id))
+    if (tbrRef.current.includes(id)) {
+      const next = tbrRef.current.filter((x) => x !== id)
+      setTbrRaw(next)
+      s.setSetting('tbr', next).catch(() => {})
+    }
   }, [])
 
   const patchBook = useCallback(async (id: string, patch: Partial<Book>) => {
@@ -114,9 +137,66 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     notify(b.favorite ? 'Quitado de favoritos' : 'Añadido a favoritos')
   }, [books, patchBook, notify])
 
+  const writeTbr = useCallback((next: string[]) => {
+    tbrRef.current = next
+    setTbrRaw(next)
+    store().then((s) => s.setSetting('tbr', next)).catch(() => {})
+  }, [])
+  const setTbr = useCallback((ids: string[]) => writeTbr([...new Set(ids)]), [writeTbr])
+  const addToTbr = useCallback((id: string, where: 'start' | 'end' = 'end') => {
+    const rest = tbrRef.current.filter((x) => x !== id)
+    writeTbr(where === 'start' ? [id, ...rest] : [...rest, id])
+  }, [writeTbr])
+  const removeFromTbr = useCallback((id: string) => {
+    if (tbrRef.current.includes(id)) writeTbr(tbrRef.current.filter((x) => x !== id))
+  }, [writeTbr])
+
   const setStatus = useCallback((id: string, status: Status) => {
-    patchBook(id, { status, ...(status === 'terminado' ? { finishedAt: Date.now() } : {}) })
-  }, [patchBook])
+    const cur = booksRef.current.find((x) => x.id === id)
+    const patch: Partial<Book> = { status }
+    if (status === 'terminado') patch.finishedAt = Date.now()
+    if (status === 'leyendo' && !cur?.startedAt) patch.startedAt = Date.now()
+    if (status !== 'abandonado') patch.dropped = undefined
+    patchBook(id, patch)
+    // starting, finishing or leaving a book takes it out of the queue
+    if (status !== 'pendiente') removeFromTbr(id)
+  }, [patchBook, removeFromTbr])
+
+  const addHistoryRef = useRef<(h: HistoryEntry) => Promise<void>>(async () => {})
+
+  const dropBook = useCallback(async (id: string, reason: DropReason, note?: string, retry?: boolean) => {
+    const b = booksRef.current.find((x) => x.id === id)
+    if (!b) return
+    await patchBook(id, {
+      status: 'abandonado',
+      dropped: { reason, note: note?.trim() || undefined, at: Date.now(), page: b.progress?.page, percent: b.progress?.percent },
+    })
+    if (retry) addToTbr(id, 'end')
+    else removeFromTbr(id)
+    addHistoryRef.current({ bookId: id, title: b.title, author: b.author, type: 'abandonado', at: Date.now(), toPage: b.progress?.page, total: b.progress?.total })
+  }, [patchBook, addToTbr, removeFromTbr])
+
+  const writeWishes = useCallback((next: WishItem[]) => {
+    wishesRef.current = next
+    setWishes(next)
+    store().then((s) => s.setSetting('wishlist', next)).catch(() => {})
+  }, [])
+  const saveWish = useCallback((w: WishItem) => {
+    const l = wishesRef.current
+    writeWishes(l.some((x) => x.id === w.id) ? l.map((x) => (x.id === w.id ? w : x)) : [w, ...l])
+  }, [writeWishes])
+  const removeWish = useCallback((id: string) => {
+    writeWishes(wishesRef.current.filter((x) => x.id !== id))
+    removeFromTbr(`w:${id}`)
+  }, [writeWishes, removeFromTbr])
+  /** A wishlist entry was bought: the new book takes its place in the queue (or leaves it). */
+  const wishBought = useCallback((wishId: string, bookId: string, keepInTbr: boolean) => {
+    const key = `w:${wishId}`
+    const cur = tbrRef.current
+    if (keepInTbr) writeTbr(cur.includes(key) ? cur.map((x) => (x === key ? bookId : x)) : [...cur, bookId])
+    else if (cur.includes(key)) writeTbr(cur.filter((x) => x !== key))
+    writeWishes(wishesRef.current.filter((x) => x.id !== wishId))
+  }, [writeTbr, writeWishes])
 
   const saveProgress = useCallback(async (id: string, p: Progress) => {
     await patchBook(id, { progress: p, lastOpenedAt: Date.now() })
@@ -127,6 +207,7 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     await s.addHistory(h).catch(() => {})
     setHistory(await s.getHistory().catch(() => []))
   }, [])
+  addHistoryRef.current = addHistory
 
   const updateSettings = useCallback((patch: Partial<Settings>) => {
     setSettings((cur) => {
@@ -136,10 +217,14 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     })
   }, [])
 
+  // only entries that still exist; a finished or abandoned-for-good book never lingers in the queue
+  const tbr = useMemo(() => tbrRaw.filter((id) => (id.startsWith('w:') ? wishes.some((w) => `w:${w.id}` === id) : books.some((b) => b.id === id))), [tbrRaw, books, wishes])
+
   const value = useMemo<LibraryCtx>(() => ({
     ready, persistent, books, history, settings, coverUrl, saveBook, removeBook, patchBook,
     toggleFavorite, setStatus, saveProgress, addHistory, updateSettings, toasts, notify,
-  }), [ready, persistent, books, history, settings, coverUrl, saveBook, removeBook, patchBook, toggleFavorite, setStatus, saveProgress, addHistory, updateSettings, toasts, notify])
+    tbr, setTbr, addToTbr, removeFromTbr, dropBook, wishes, saveWish, removeWish, wishBought,
+  }), [ready, persistent, books, history, settings, coverUrl, saveBook, removeBook, patchBook, toggleFavorite, setStatus, saveProgress, addHistory, updateSettings, toasts, notify, tbr, setTbr, addToTbr, removeFromTbr, dropBook, wishes, saveWish, removeWish, wishBought])
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }

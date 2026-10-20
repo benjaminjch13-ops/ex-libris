@@ -46,6 +46,7 @@ export function History({ onBack }: { onBack: () => void }) {
                       : `Retomaste la lectura en la página ${h.toPage ?? h.fromPage ?? 1}`)}
                     {h.type === 'terminado' && 'Terminaste el libro'}
                     {h.type === 'agregado' && 'Añadido a la biblioteca'}
+                    {h.type === 'abandonado' && (h.toPage ? `Lo dejaste en la página ${h.toPage}` : 'Lo dejaste')}
                     {' · '}{h.author}
                   </div>
                 </div>

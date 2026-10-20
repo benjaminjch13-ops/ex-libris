@@ -12,6 +12,8 @@
     "preview:pages": "vite preview --mode pages"
   },
   "dependencies": {
+    "@zxing/browser": "^0.1.5",
+    "@zxing/library": "^0.21.3",
     "idb": "^8.0.4",
     "jszip": "^3.10.2",
     "motion": "^14.4.0",

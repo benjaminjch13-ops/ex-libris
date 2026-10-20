@@ -1,5 +1,6 @@
 import { useEffect, useRef, type ReactNode } from 'react'
 import { motion } from 'motion/react'
+import { createPortal } from 'react-dom'
 import { Close } from './Icons'
 
 export function Modal({ title, onClose, children, footer, narrow, labelId }: {
@@ -32,7 +33,8 @@ export function Modal({ title, onClose, children, footer, narrow, labelId }: {
     return () => { window.removeEventListener('keydown', onKey, true); prev?.focus?.({ preventScroll: true }) }
   }, [onClose])
 
-  return (
+  // portal: a dialog opened from inside a view must sit above the phone tab bar, not inside the page's stacking context
+  return createPortal(
     <div className="modal-root">
       <motion.div className="modal-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} />
       <motion.div
@@ -54,7 +56,8 @@ export function Modal({ title, onClose, children, footer, narrow, labelId }: {
         <div className="modal-body">{children}</div>
         {footer && <div className="modal-foot">{footer}</div>}
       </motion.div>
-    </div>
+    </div>,
+    document.body,
   )
 }
 

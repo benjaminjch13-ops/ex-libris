@@ -114,6 +114,7 @@ function ReaderBody({ book, src, vp, reduce, fromStart, onClose, settings, updat
   addHistory: Lib['addHistory']
   notify: Lib['notify']
 }) {
+  const { setStatus } = useLibrary()
   const isPdf = src.kind === 'pdf'
   const closeWith = () => onClose(session.current.finished)
   // Two facing pages need room; on narrow screens the reader always shows one page.
@@ -243,7 +244,7 @@ function ReaderBody({ book, src, vp, reduce, fromStart, onClose, settings, updat
       setSavedAt(Date.now())
       if (atEnd && !session.current.finished && book.status !== 'terminado') {
         session.current.finished = true
-        await patchBook(book.id, { status: 'terminado', finishedAt: Date.now() })
+        setStatus(book.id, 'terminado')
         await addHistory({ bookId: book.id, title: book.title, author: book.author, type: 'terminado', at: Date.now(), total })
         notify(`Terminaste «${book.title}»`)
       }
@@ -255,9 +256,10 @@ function ReaderBody({ book, src, vp, reduce, fromStart, onClose, settings, updat
   useEffect(() => {
     const updates: Partial<Book> = { lastOpenedAt: Date.now() }
     if (!book.startedAt) updates.startedAt = Date.now()
-    if (book.status === 'pendiente') updates.status = 'leyendo'
     if (src.kind === 'pdf' && book.pages !== src.numPages) updates.pages = src.numPages
     patchBook(book.id, updates)
+    // opening a pending (or previously abandoned) book starts it; it also leaves the reading queue
+    if (book.status === 'pendiente' || book.status === 'abandonado') setStatus(book.id, 'leyendo')
     return () => {
       const s = session.current
       const seconds = Math.round((Date.now() - s.start) / 1000)

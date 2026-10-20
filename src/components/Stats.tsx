@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import type { Book, Status } from '../types'
-import { STATUS_LABEL } from '../types'
+import { STATUS_LABEL, DROP_REASONS } from '../types'
 import { useLibrary } from '../state/library'
 import { genreOf } from '../lib/genres'
 import { Stars, fmtRating } from './ReviewDialog'
@@ -34,13 +34,14 @@ export function Stats({ onBack, onOpenBook }: { onBack: () => void; onOpenBook: 
   const rows: Row[] = useMemo(() => {
     const m = new Map<string, Book[]>()
     for (const b of books) m.set(genreOf(b), [...(m.get(genreOf(b)) ?? []), b])
-    return [...m.entries()].map(([genre, list]) => {
-      const byStatus = { terminado: 0, leyendo: 0, pendiente: 0 } as Record<Status, number>
+    return [...m.entries()].filter(([, list]) => list.some((b) => b.status !== 'abandonado')).map(([genre, list]) => {
+      const byStatus = { terminado: 0, leyendo: 0, pendiente: 0, abandonado: 0 } as Record<Status, number>
       list.forEach((b) => byStatus[b.status]++)
       const rated = list.filter((b) => (b.review?.rating ?? 0) > 0)
       return {
         genre,
-        books: list,
+        // abandoned books are counted apart (see «Los que dejaste»), not in the genre bars
+        books: list.filter((b) => b.status !== 'abandonado'),
         byStatus,
         pagesRead: list.filter((b) => b.status === 'terminado').reduce((n, b) => n + (b.pages ?? 0), 0),
         avg: rated.length ? rated.reduce((n, b) => n + b.review!.rating, 0) / rated.length : null,
@@ -65,6 +66,10 @@ export function Stats({ onBack, onOpenBook }: { onBack: () => void; onOpenBook: 
   const mostPending = [...rows].sort((a, b) => b.byStatus.pendiente - a.byStatus.pendiente)[0]
 
   const fmt = (n: number) => n.toLocaleString('es')
+  const dropped = books.filter((b) => b.status === 'abandonado')
+  const reasons = DROP_REASONS.map((r) => ({ ...r, n: dropped.filter((b) => b.dropped?.reason === r.key).length })).filter((r) => r.n > 0).sort((a, b) => b.n - a.n)
+  const settled = totalRead + dropped.length
+  const avgDropPct = dropped.filter((b) => b.dropped?.percent).length ? Math.round(dropped.reduce((n, b) => n + (b.dropped?.percent ?? 0), 0) / dropped.filter((b) => b.dropped?.percent).length * 100) : null
 
   return (
     <section className="stats-view">
@@ -77,7 +82,7 @@ export function Stats({ onBack, onOpenBook }: { onBack: () => void; onOpenBook: 
         <div className="tile">
           <span className="tile-label">Géneros en tu biblioteca</span>
           <b>{rows.filter((r) => r.genre !== 'Sin género').length}</b>
-          <span className="tile-sub">{fmt(books.length)} {books.length === 1 ? 'libro' : 'libros'} en total</span>
+          <span className="tile-sub">{fmt(books.length - dropped.length)} {books.length - dropped.length === 1 ? 'libro' : 'libros'} en la estantería</span>
         </div>
         {mostRead && mostRead.byStatus.terminado > 0 && (
           <div className="tile">
@@ -163,7 +168,7 @@ export function Stats({ onBack, onOpenBook }: { onBack: () => void; onOpenBook: 
                       {[...r.books].sort((a, b) => order(a.status) - order(b.status) || (b.review?.rating ?? 0) - (a.review?.rating ?? 0)).map((b) => (
                         <li key={b.id}>
                           <button onClick={(e) => onOpenBook(b, e.currentTarget)} data-book-id={b.id}>
-                            <i style={{ background: SERIES.find((s) => s.key === b.status)!.color }} aria-hidden />
+                            <i style={{ background: SERIES.find((s) => s.key === b.status)?.color ?? 'var(--muted)' }} aria-hidden />
                             <span className="gb-title">{b.title}</span>
                             <span className="gb-author">{b.author}</span>
                             <span className="gb-meta">{b.review?.rating ? <Stars value={b.review.rating} size={12} /> : STATUS_LABEL[b.status]}</span>
@@ -180,6 +185,42 @@ export function Stats({ onBack, onOpenBook }: { onBack: () => void; onOpenBook: 
         <p className="chart-note">Toca un género para ver sus libros. El género se puede cambiar en «Editar datos» de cada libro.</p>
       </div>
 
+      {dropped.length > 0 && (
+        <div className="chart-card">
+          <div className="chart-head">
+            <div>
+              <h2>Los que dejaste</h2>
+              <p>
+                {dropped.length} {dropped.length === 1 ? 'libro abandonado' : 'libros abandonados'}
+                {settled ? ` · ${Math.round((dropped.length / settled) * 100)}% de los que cerraste (terminados o dejados)` : ''}
+                {avgDropPct != null ? ` · en promedio los dejas al ${avgDropPct}%` : ''}.
+              </p>
+            </div>
+          </div>
+          <ul className="reason-bars">
+            {reasons.map((r) => (
+              <li key={r.key}>
+                <span className="rb-label">{r.label}</span>
+                <span className="rb-track"><i style={{ width: `${(r.n / reasons[0].n) * 100}%` }} /></span>
+                <span className="rb-n">{r.n}</span>
+              </li>
+            ))}
+          </ul>
+          <ul className="gbooks static">
+            {dropped.sort((a, b) => (b.dropped?.at ?? 0) - (a.dropped?.at ?? 0)).slice(0, 8).map((b) => (
+              <li key={b.id}>
+                <button onClick={(e) => onOpenBook(b, e.currentTarget)} data-book-id={b.id}>
+                  <i style={{ background: 'var(--muted)' }} aria-hidden />
+                  <span className="gb-title">{b.title}</span>
+                  <span className="gb-author">{b.author}</span>
+                  <span className="gb-meta">{b.dropped?.percent ? `${Math.round(b.dropped.percent * 100)}%` : ''}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {tip && (
         <div className="gtip" style={{ left: Math.min(tip.x + 14, window.innerWidth - 200), top: tip.y + 14 }} role="tooltip">
           <b>{tip.title}</b>
@@ -190,7 +231,7 @@ export function Stats({ onBack, onOpenBook }: { onBack: () => void; onOpenBook: 
   )
 }
 
-const order = (s: Status) => (s === 'leyendo' ? 0 : s === 'terminado' ? 1 : 2)
+const order = (s: Status) => (s === 'leyendo' ? 0 : s === 'terminado' ? 1 : s === 'pendiente' ? 2 : 3)
 
 function niceTicks(max: number) {
   const raw = max / 4
