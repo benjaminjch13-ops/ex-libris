@@ -4,6 +4,7 @@ import { DEFAULT_SETTINGS, loadSettings, saveSettings, store } from '../lib/db'
 import { genreFromCategory } from '../lib/genres'
 import { compressCover, protectStorage } from '../lib/backup'
 import { applyTheme } from '../lib/themes'
+import { applyReading } from '../lib/reading'
 
 
 interface Toast { id: number; text: string; tone?: 'ok' | 'error' }
@@ -80,7 +81,9 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
       }))
       setBooks(list)
       setHistory(await s.getHistory().catch(() => []))
-      setSettings(await loadSettings())
+      const loaded = await loadSettings()
+      applyReading(loaded.reading)
+      setSettings(loaded)
       setTbrRaw((await s.getSetting<string[]>('tbr').catch(() => undefined)) ?? [])
       setWishes((await s.getSetting<WishItem[]>('wishlist').catch(() => undefined)) ?? [])
       setReady(true)
@@ -243,6 +246,8 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
   }, [ready, settings.theme])
 
   const updateSettings = useCallback((patch: Partial<Settings>) => {
+    // applied right away (not in an effect) so the reader re-paginates with the new look already in place
+    if (patch.reading) applyReading(patch.reading)
     setSettings((cur) => {
       const next = { ...cur, ...patch }
       saveSettings(next)

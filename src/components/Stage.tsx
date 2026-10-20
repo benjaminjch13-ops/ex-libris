@@ -8,6 +8,7 @@ import { useLibrary } from '../state/library'
 import { useLiteMotion, useViewport, relTime, fmtSize } from '../lib/hooks'
 import { BookOpen, ChevronLeft, Close, Edit, Heart } from './Icons'
 import { Stars } from './ReviewDialog'
+import { ExLibrisSeal } from './ExLibrisSeal'
 import { editionLabel, isManual } from './Flows'
 import { DROP_REASONS } from '../types'
 
@@ -26,11 +27,14 @@ interface Props {
 }
 
 export function TitlePage({ book }: { book: Book }) {
+  const { settings } = useLibrary()
+  const ex = settings.exlibris
   return (
     <div className="title-page">
       <span className="o">❦</span>
       <span className="t">{book.title}</span>
       <span className="a">{book.author}</span>
+      {ex?.enabled && <div className="tp-seal"><ExLibrisSeal cfg={ex} size={120} /></div>}
     </div>
   )
 }
@@ -52,7 +56,9 @@ function useGeometry() {
 }
 
 export function Stage({ book, origin, initial, onRead, onClosed, onEdit, onReview, onPage, onDrop }: Props) {
-  const { toggleFavorite, setStatus, tbr, addToTbr, removeFromTbr, notify } = useLibrary()
+  const { toggleFavorite, setStatus, tbr, addToTbr, removeFromTbr, notify, settings, patchBook } = useLibrary()
+  const custom = settings.customShelves ?? []
+  const [shelfMenu, setShelfMenu] = useState(false)
   const manual = isManual(book)
   const tbrPos = tbr.indexOf(book.id)
   const { lite } = useLiteMotion()
@@ -288,9 +294,18 @@ export function Stage({ book, origin, initial, onRead, onClosed, onEdit, onRevie
               </button>
             )}
             <button className="chip" onClick={onEdit}><Edit size={13} /> Editar datos</button>
+            {custom.length > 0 && <button className="chip" aria-expanded={shelfMenu} onClick={() => setShelfMenu((v) => !v)}>Estantes{book.shelves?.length ? ` · ${book.shelves.filter((x) => custom.includes(x)).length}` : ''}</button>}
             {book.status === 'leyendo' && <button className="chip" onClick={onDrop}>Dejar este libro</button>}
             {book.sourceUrl && <a className="chip" href={book.sourceUrl} target="_blank" rel="noopener noreferrer">Ver origen ↗</a>}
           </div>
+          {shelfMenu && custom.length > 0 && (
+            <div className="filters shelf-menu" role="group" aria-label="Mis estantes">
+              {custom.map((c) => {
+                const on = !!book.shelves?.includes(c)
+                return <button key={c} className="chip" aria-pressed={on} onClick={() => { patchBook(book.id, { shelves: on ? book.shelves!.filter((x) => x !== c) : [...(book.shelves ?? []), c] }); notify(on ? `Quitado de «${c}»` : `En «${c}»`) }}>{on ? '✓ ' : '+ '}{c}</button>
+              })}
+            </div>
+          )}
           {book.format === 'catalogo' && <p className="catalog-note">Este libro todavía no tiene archivo. Sube el EPUB o PDF para poder leerlo aquí.</p>}
         </motion.div>
       )}

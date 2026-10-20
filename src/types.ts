@@ -94,6 +94,8 @@ export interface Book {
   coverRemote?: string
   /** why and where the reader left the book */
   dropped?: { reason: DropReason; note?: string; at: number; page?: number; percent?: number }
+  /** the reader's own shelves this book is on */
+  shelves?: string[]
   /** the reader said "keep going" to the inactivity nudge; don't ask again before this */
   nudgeAfter?: number
 }
@@ -151,8 +153,42 @@ export interface Settings {
   night: boolean
   /** reader layout: automatic (by screen), always one page, or two facing pages */
   pageMode?: 'auto' | 'una' | 'dos'
+  reading?: ReadingPrefs
+  shelf?: ShelfPrefs
+  /** names of the reader's own shelves (a book lists the ones it belongs to in Book.shelves) */
+  customShelves?: string[]
+  home?: { order: HomeSection[]; hidden: HomeSection[] }
+  goals?: { yearBooks?: number; dailyMinutes?: number }
+  exlibris?: ExLibris
   /** look of the app; 'auto' follows the system's light/dark setting */
   theme?: 'auto' | 'nocturna' | 'pergamino' | 'gotica' | 'bosque' | 'oceano' | 'rosa' | 'estrellas' | 'montanas' | 'acogedor' | 'naturaleza' | 'lluvia'
+}
+
+export interface ReadingPrefs {
+  font: 'literata' | 'garamond' | 'moderna' | 'legible' | 'lexend'
+  spacing: 'compacto' | 'normal' | 'amplio'
+  margins: 'estrecho' | 'normal' | 'amplio'
+  align: 'justificado' | 'izquierda'
+  paper: 'tema' | 'crema' | 'blanco' | 'sepia' | 'gris'
+}
+
+export interface ShelfPrefs {
+  group: 'categoria' | 'genero' | 'autor' | 'estante' | 'ninguno'
+  sort: 'titulo' | 'autor' | 'reciente' | 'color' | 'altura'
+  decor: DecorId[]
+}
+export type DecorId = 'planta' | 'gato' | 'vela' | 'globo' | 'reloj' | 'pila'
+
+export type HomeSection = 'racha' | 'mesa' | 'siguiente' | 'parati' | 'resumen'
+
+export type ExMotif = 'buho' | 'llave' | 'luna' | 'rama' | 'gato' | 'pluma' | 'estrella' | 'ancla' | 'libro' | 'flor'
+export interface ExLibris {
+  enabled: boolean
+  name: string
+  motif: ExMotif
+  phrase: string
+  ink: string
+  shape: 'ovalo' | 'escudo' | 'rect' | 'circulo'
 }
 
 export const STATUS_LABEL: Record<Status, string> = {

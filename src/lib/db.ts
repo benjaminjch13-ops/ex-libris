@@ -90,12 +90,25 @@ export const DEFAULT_SETTINGS: Settings = {
   night: false,
   pageMode: 'auto',
   theme: 'nocturna',
+  reading: { font: 'literata', spacing: 'normal', margins: 'normal', align: 'justificado', paper: 'tema' },
+  shelf: { group: 'categoria', sort: 'reciente', decor: ['planta', 'pila'] },
+  customShelves: [],
+  home: { order: ['racha', 'mesa', 'siguiente', 'parati', 'resumen'], hidden: [] },
+  goals: {},
+  exlibris: { enabled: false, name: '', motif: 'buho', phrase: '', ink: '#5b1f24', shape: 'ovalo' },
 }
 
 export async function loadSettings(): Promise<Settings> {
   const s = await store()
   const saved = await s.getSetting<Partial<Settings>>('prefs').catch(() => undefined)
-  return { ...DEFAULT_SETTINGS, ...(saved ?? {}) }
+  const merged = { ...DEFAULT_SETTINGS, ...(saved ?? {}) }
+  // nested groups added in later versions get their defaults field by field
+  merged.reading = { ...DEFAULT_SETTINGS.reading!, ...(saved?.reading ?? {}) }
+  merged.shelf = { ...DEFAULT_SETTINGS.shelf!, ...(saved?.shelf ?? {}) }
+  merged.exlibris = { ...DEFAULT_SETTINGS.exlibris!, ...(saved?.exlibris ?? {}) }
+  const order = saved?.home?.order ?? []
+  merged.home = { order: [...order, ...DEFAULT_SETTINGS.home!.order.filter((x) => !order.includes(x))], hidden: saved?.home?.hidden ?? [] }
+  return merged
 }
 
 export async function saveSettings(v: Settings) {

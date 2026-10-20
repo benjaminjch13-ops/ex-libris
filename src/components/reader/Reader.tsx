@@ -10,6 +10,8 @@ import { Check, ChevronLeft, ChevronRight, Close, Expand, Highlighter, List, Moo
 import type { Highlight, Note, NoteColor } from '../../types'
 import { NotesLayer, NotePopup, anchorFor, notePosition } from './Notes'
 import { uid } from '../../lib/db'
+import { MARGIN_K, readingKey } from '../../lib/reading'
+import { ReadingPanel } from '../Preferences'
 
 interface Props {
   book: Book
@@ -115,6 +117,7 @@ function ReaderBody({ book, src, vp, reduce, fromStart, onClose, settings, updat
   notify: Lib['notify']
 }) {
   const { setStatus } = useLibrary()
+  const [readPop, setReadPop] = useState(false)
   const isPdf = src.kind === 'pdf'
   const closeWith = () => onClose(session.current.finished)
   // Two facing pages need room; on narrow screens the reader always shows one page.
@@ -151,7 +154,11 @@ function ReaderBody({ book, src, vp, reduce, fromStart, onClose, settings, updat
     return { pageW: Math.floor(pageW), pageH: Math.floor(pageH) }
   }, [vp.w, vp.h, spread, isPdf, src])
 
-  const box = useMemo(() => textBox(geom.pageW, geom.pageH, isPdf ? 1 : settings.fontScale), [geom, settings.fontScale, isPdf])
+  // a new reading look (font, spacing, margins, alignment) is a new text box, so the book is paginated again
+  const rKey = readingKey(settings.reading)
+  const box = useMemo(() => textBox(geom.pageW, geom.pageH, isPdf ? 1 : settings.fontScale, MARGIN_K[settings.reading?.margins ?? 'normal']),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [geom, settings.fontScale, isPdf, rKey])
 
   // ---- pagination ----
   // Pagination belongs to one text box: when the layout changes, stale page lists are ignored
@@ -548,6 +555,7 @@ function ReaderBody({ book, src, vp, reduce, fromStart, onClose, settings, updat
             <button disabled={isPdf || fontIdx <= 0} onClick={() => updateSettings({ fontScale: FONT_STEPS[Math.max(0, fontIdx - 1)] })} aria-label="Reducir letra" style={{ fontSize: 12 }}>A</button>
             <button disabled={isPdf || fontIdx >= FONT_STEPS.length - 1} onClick={() => updateSettings({ fontScale: FONT_STEPS[Math.min(FONT_STEPS.length - 1, (fontIdx < 0 ? 2 : fontIdx) + 1)] })} aria-label="Aumentar letra" style={{ fontSize: 17 }}>A</button>
           </div>
+          <button className="icon-btn aa-btn" onClick={() => setReadPop((v) => !v)} aria-pressed={readPop} aria-label="Ajustes de lectura" title="Letra, interlineado, márgenes y color de página" disabled={isPdf}>Aa</button>
           <button className="icon-btn" onClick={() => updateSettings({ night: !settings.night })} aria-pressed={settings.night} aria-label={settings.night ? 'Modo día' : 'Modo nocturno'} title="Modo nocturno">
             {settings.night ? <Sun /> : <Moon />}
           </button>
@@ -561,6 +569,17 @@ function ReaderBody({ book, src, vp, reduce, fromStart, onClose, settings, updat
         </div>
       </div>
 
+      <AnimatePresence>
+        {readPop && (
+          <>
+            <motion.div className="read-pop-back" onClick={() => setReadPop(false)} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} />
+            <motion.div className="read-pop" role="dialog" aria-label="Ajustes de lectura" initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
+              <div className="rp-head"><b>Ajustes de lectura</b><button className="icon-btn" onClick={() => setReadPop(false)} aria-label="Cerrar ajustes de lectura"><Close size={16} /></button></div>
+              <ReadingPanel compact />
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
       <style>{highlightCss}</style>
       <div className="reader-stage" onPointerDown={onPointerDown} onPointerUp={onPointerUp}>
         {!ready || !total ? (

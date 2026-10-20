@@ -18,8 +18,8 @@ export interface TextBox {
   fontSize: number
 }
 
-export function textBox(pageW: number, pageH: number, fontScale: number): TextBox {
-  const mx = Math.round(Math.max(18, pageW * 0.1))
+export function textBox(pageW: number, pageH: number, fontScale: number, marginK = 1): TextBox {
+  const mx = Math.round(Math.max(14, pageW * 0.1 * marginK))
   const top = Math.round(Math.max(38, pageH * 0.085))
   const bottom = Math.round(Math.max(30, pageH * 0.085))
   // short, wide pages (phone in landscape) would otherwise get a big type size and only a few lines
@@ -50,6 +50,8 @@ export async function paginate(chapters: Chapter[], box: TextBox, signal: { canc
   host.appendChild(el)
   document.body.appendChild(host)
   try {
+    // the chosen reading font may not be downloaded yet: load it before measuring
+    try { await document.fonts?.load(`${box.fontSize}px ${getComputedStyle(el).fontFamily}`) } catch { /* offline: fallback font */ }
     if (document.fonts?.ready) await document.fonts.ready
     const counts: number[] = []
     const blockPage: number[][] = []

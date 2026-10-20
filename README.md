@@ -44,6 +44,8 @@ La beta se publica sola en `https://<usuario>.github.io/<repositorio>/` cada vez
 - **Wishlist:** pega el enlace de cualquier tienda (Amazon/Kindle, Apple Books, Google Play, Buscalibre…) y se completa sola; un libro puede tener varios enlaces y precios. En Android, «Compartir → Ex Libris» desde la tienda. «Ya lo compré» lo pasa a la biblioteca.
 - **Por leer (TBR):** fila ordenable (arrastrar o flechas), ordenar por géneros alternos, cortos primero, los que más esperan. Al terminar o abandonar un libro, la app propone el siguiente.
 - **Para ti (libros que pueden gustarte):** sugerencias a partir de los géneros, autores, calificaciones y abandonos de tu biblioteca, sobre un catálogo curado de ~200 libros (los más leídos en español, los mejores del siglo XXI, premios de lectores, más vendidos y clásicos de cada género), cada uno con sinopsis, dónde encontrarlo y un toque para guardarlo en la wishlist. Sin biblioteca: selector de gustos y estantes para principiantes.
+- **Personalización:** 11 temas, ajustes de lectura (letra —incluidas Atkinson Hyperlegible y Lexend—, interlineado, márgenes, alineación, color de página; también desde el botón «Aa» del lector), ex libris propio sellado en cada libro, estantería agrupada y ordenada a gusto (hasta por color), adornos, estantes propios, y un inicio con secciones a elección.
+- **Metas y racha:** meta anual de libros y diaria de minutos, widget de racha con la semana, y «Tu año en libros» con imagen para compartir.
 - **Drop it:** abandonar un libro con su motivo y nota; se guarda dónde lo dejaste. Si un libro lleva 3 semanas sin abrirse, la app pregunta si seguir, pausarlo o dejarlo. Estadísticas de abandonos.
 
 ## Estructura

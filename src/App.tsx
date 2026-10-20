@@ -4,13 +4,12 @@ import type { Book } from './types'
 import { LibraryProvider, useLibrary } from './state/library'
 import { Library, type OpenOrigin } from './components/Library'
 import { Stage } from './components/Stage'
-import { ConfirmDialog, Modal } from './components/Modal'
+import { ConfirmDialog } from './components/Modal'
 import { applyFilters, EMPTY_FILTERS, type Filters } from './lib/filters'
 import { Check, Clock, Close, Plus, Search, Settings as SettingsIcon, Books, BarChart, Queue, Bag, More, Shelf, Sparkle } from './components/Icons'
 import type { SharedIn } from './components/Wishlist'
 import { isManual } from './components/Flows'
-import { DataPanel } from './components/DataPanel'
-import { THEMES, type ThemeId } from './lib/themes'
+import type { PrefTab } from './components/Preferences'
 import type { AddKind } from './components/BookForm'
 
 // Everything not needed for the first screen loads on demand (and is cached for offline use by the service worker).
@@ -27,9 +26,12 @@ const DropDialog = lazy(() => import('./components/Flows').then((m) => ({ defaul
 const PageDialog = lazy(() => import('./components/Flows').then((m) => ({ default: m.PageDialog })))
 const NextUpDialog = lazy(() => import('./components/Flows').then((m) => ({ default: m.NextUpDialog })))
 
+const Preferences = lazy(() => import('./components/Preferences').then((m) => ({ default: m.Preferences })))
+const YearReview = lazy(() => import('./components/YearReview').then((m) => ({ default: m.YearReview })))
+
 const ViewLoading = () => <div className="empty-state" role="status"><div className="spin" /></div>
 
-type View = 'library' | 'collection' | 'history' | 'stats' | 'tbr' | 'wishlist' | 'recs'
+type View = 'library' | 'collection' | 'history' | 'stats' | 'tbr' | 'wishlist' | 'recs' | 'year'
 
 /** Android share sheet → `?share=1&url=…&text=…&title=…` (manifest share_target) */
 function readShare(): SharedIn | null {
@@ -61,7 +63,7 @@ function Shell() {
   const [reading, setReading] = useState<{ id: string; fromStart: boolean } | null>(null)
   const [form, setForm] = useState<{ book?: Book; kind?: AddKind; preset?: Partial<Book>; onSaved?: (b: Book) => void } | null>(null)
   const [confirmDel, setConfirmDel] = useState<Book | null>(null)
-  const [showSettings, setShowSettings] = useState(false)
+  const [showSettings, setShowSettings] = useState<PrefTab | false>(false)
   const [review, setReview] = useState<{ id: string; justFinished?: boolean } | null>(null)
   const pendingReview = useRef<string | null>(null)
 
@@ -174,7 +176,7 @@ function Shell() {
             <button className="icon-btn hide-sm" aria-pressed={view === 'collection'} onClick={() => go('collection')} aria-label="Colección completa" title="Colección completa"><Books /></button>
             <button className="icon-btn hide-sm" aria-pressed={view === 'stats'} onClick={() => go('stats')} aria-label="Estadísticas por género" title="Estadísticas por género"><BarChart /></button>
             <button className="icon-btn hide-sm" aria-pressed={view === 'history'} onClick={() => go('history')} aria-label="Historial de lectura" title="Historial de lectura"><Clock /></button>
-            <button className="icon-btn hide-sm" onClick={() => setShowSettings(true)} aria-label="Preferencias" title="Preferencias"><SettingsIcon /></button>
+            <button className="icon-btn hide-sm" onClick={() => setShowSettings('apariencia')} aria-label="Preferencias" title="Preferencias"><SettingsIcon /></button>
             <button className="btn btn-gold" onClick={() => setForm({})} aria-label="Añadir libro"><Plus size={16} /><span className="hide-sm">Añadir libro</span></button>
           </nav>
         </header>
@@ -202,8 +204,11 @@ function Shell() {
                   onTbr={() => setView('tbr')}
                   onDrop={setDrop}
                   onRecs={() => setView('recs')}
+                  onYear={() => setView('year')}
+                  onGoals={() => setShowSettings('metas')}
                 />
               )}
+              {view === 'year' && <YearReview onBack={() => setView('library')} onOpenBook={openFromElement} />}
               {view === 'collection' && (
                 <Collection
                   visible={visible}
@@ -287,7 +292,7 @@ function Shell() {
         )}
       </AnimatePresence></Suspense>
 
-      <AnimatePresence>{showSettings && <SettingsDialog onClose={() => setShowSettings(false)} />}</AnimatePresence>
+      <Suspense fallback={null}><AnimatePresence>{showSettings && <Preferences initialTab={showSettings} onClose={() => setShowSettings(false)} />}</AnimatePresence></Suspense>
       <Suspense fallback={null}><AnimatePresence>
         {drop && <DropDialog key={drop.id} book={books.find((b) => b.id === drop.id) ?? drop} onClose={() => setDrop(null)} onDropped={(id) => { if (stage?.id === id) setStage(null); setNextUp(id) }} />}
       </AnimatePresence></Suspense>
@@ -303,7 +308,7 @@ function Shell() {
         {([['library', 'Estantería', Shelf], ['recs', 'Para ti', Sparkle], ['tbr', 'Por leer', Queue], ['wishlist', 'Wishlist', Bag]] as const).map(([v, label, Icon]) => (
           <button key={v} aria-current={view === v && !more ? 'page' : undefined} onClick={() => { setMore(false); setView(v) }}><Icon size={20} /><span>{label}</span></button>
         ))}
-        <button aria-expanded={more} aria-current={more || view === 'stats' || view === 'history' || view === 'collection' ? 'page' : undefined} onClick={() => setMore((m) => !m)}><More size={20} /><span>Más</span></button>
+        <button aria-expanded={more} aria-current={more || view === 'stats' || view === 'history' || view === 'collection' || view === 'year' ? 'page' : undefined} onClick={() => setMore((m) => !m)}><More size={20} /><span>Más</span></button>
       </nav>
       <AnimatePresence>
         {more && (
@@ -313,7 +318,8 @@ function Shell() {
               <button role="menuitem" onClick={() => { setMore(false); setView('collection') }}><Books /> Colección completa</button>
               <button role="menuitem" onClick={() => { setMore(false); setView('stats') }}><BarChart /> Estadísticas</button>
               <button role="menuitem" onClick={() => { setMore(false); setView('history') }}><Clock /> Historial de lectura</button>
-              <button role="menuitem" onClick={() => { setMore(false); setShowSettings(true) }}><SettingsIcon /> Preferencias</button>
+              <button role="menuitem" onClick={() => { setMore(false); setView('year') }}><Sparkle /> Tu año en libros</button>
+              <button role="menuitem" onClick={() => { setMore(false); setShowSettings('apariencia') }}><SettingsIcon /> Preferencias</button>
               {installEvt && <button role="menuitem" onClick={() => { setMore(false); install() }}><Plus /> Instalar app</button>}
             </motion.div>
           </>
@@ -329,70 +335,6 @@ function Shell() {
           ))}
         </AnimatePresence>
       </div>
-    </div>
-  )
-}
-
-function SettingsDialog({ onClose }: { onClose: () => void }) {
-  const { settings, updateSettings, notify } = useLibrary()
-  const [libraryName, setLibraryName] = useState(settings.libraryName)
-  const [readerName, setReaderName] = useState(settings.readerName)
-  return (
-    <Modal
-      title="Preferencias"
-      onClose={onClose}
-      narrow
-      footer={<>
-        <button className="btn" onClick={onClose}>Cancelar</button>
-        <button className="btn btn-gold" onClick={() => { updateSettings({ libraryName: libraryName.trim() || 'Ex Libris', readerName: readerName.trim() }); notify('Preferencias guardadas'); onClose() }}>Guardar</button>
-      </>}
-    >
-      <div className="fields">
-        <ThemePicker value={settings.theme ?? 'nocturna'} onChange={(theme) => updateSettings({ theme })} />
-        <div className="field">
-          <label htmlFor="s-lib">Nombre de la biblioteca</label>
-          <input id="s-lib" value={libraryName} onChange={(e) => setLibraryName(e.target.value)} maxLength={40} />
-        </div>
-        <div className="field">
-          <label htmlFor="s-name">Tu nombre</label>
-          <input id="s-name" value={readerName} onChange={(e) => setReaderName(e.target.value)} maxLength={30} placeholder="Para el saludo de bienvenida" />
-        </div>
-        <DataPanel />
-        {__BETA__ && (
-          <div className="install-help">
-            <b>Instalar en el teléfono</b>
-            <p><span>iPhone (Safari):</span> botón Compartir → «Agregar a pantalla de inicio».</p>
-            <p><span>Android (Chrome):</span> menú ⋮ → «Instalar app» o «Agregar a pantalla principal».</p>
-            <p className="ver">Versión beta del {__BUILD_DATE__}</p>
-          </div>
-        )}
-      </div>
-    </Modal>
-  )
-}
-
-/** Book-inspired looks; the choice applies at once so the person sees it behind the dialog. */
-function ThemePicker({ value, onChange }: { value: ThemeId; onChange: (t: ThemeId) => void }) {
-  return (
-    <div className="field">
-      <span className="lbl" id="theme-lbl">Tema</span>
-      <div className="theme-grid" role="radiogroup" aria-labelledby="theme-lbl">
-        {THEMES.map((t) => (
-          <button key={t.id} type="button" role="radio" aria-checked={value === t.id} className="theme-card" onClick={() => onChange(t.id)}>
-            <span className="tc-swatch" style={{ background: t.sky ?? t.room }} aria-hidden>
-              {t.spines.map((c, i) => <i key={i} style={{ background: c, height: 30 + ((i * 13) % 22) }} />)}
-              <span className="tc-plank" style={{ background: t.wood }} />
-              <span className="tc-dot" style={{ background: t.accent }} />
-            </span>
-            <b>{t.name}</b>
-            <span className="tc-line">{t.line}</span>
-          </button>
-        ))}
-      </div>
-      <label className="check" style={{ marginTop: 4 }}>
-        <input type="checkbox" checked={value === 'auto'} onChange={(e) => onChange(e.target.checked ? 'auto' : 'nocturna')} />
-        Automático: Pergamino de día y Biblioteca nocturna de noche, según tu teléfono
-      </label>
     </div>
   )
 }
