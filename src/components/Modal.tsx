@@ -15,7 +15,9 @@ export function Modal({ title, onClose, children, footer, narrow, labelId }: {
   useEffect(() => {
     const prev = document.activeElement as HTMLElement | null
     const first = ref.current?.querySelector<HTMLElement>('input, select, textarea, button:not(.modal-x)')
-    setTimeout(() => (first ?? ref.current)?.focus({ preventScroll: true }), 60)
+    // on touch screens focusing a field pops the keyboard over half the dialog; focus the dialog itself instead
+    const touch = window.matchMedia?.('(pointer: coarse)').matches
+    setTimeout(() => ((touch ? null : first) ?? ref.current)?.focus({ preventScroll: true }), 60)
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') { e.stopPropagation(); onClose() }
       if (e.key === 'Tab' && ref.current) {

@@ -59,7 +59,9 @@ export function Library({ visible, filters, setFilters, selectedId, onOpen, onAd
               ? 'Tu biblioteca está vacía. Añade un EPUB o un PDF y aparecerá en la estantería.'
               : lead
                 ? <>Tienes <em>{lead.title}</em> abierto por la página {lead.progress?.page ?? 1}. Elige un lomo para hojear otro libro.</>
-                : 'Pasa el cursor sobre un lomo para sacarlo del estante; haz clic para abrirlo.'}
+                : window.matchMedia?.('(hover: none)').matches
+                  ? 'Toca un lomo para sacarlo del estante y ver el libro.'
+                  : 'Pasa el cursor sobre un lomo para sacarlo del estante; haz clic para abrirlo.'}
           </p>
         </div>
         <div className="stats" aria-label="Resumen de la biblioteca">

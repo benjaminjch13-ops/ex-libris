@@ -77,13 +77,13 @@ export function Stats({ onBack, onOpenBook }: { onBack: () => void; onOpenBook: 
         <div className="tile">
           <span className="tile-label">Géneros en tu biblioteca</span>
           <b>{rows.filter((r) => r.genre !== 'Sin género').length}</b>
-          <span className="tile-sub">{fmt(books.length)} libros en total</span>
+          <span className="tile-sub">{fmt(books.length)} {books.length === 1 ? 'libro' : 'libros'} en total</span>
         </div>
         {mostRead && mostRead.byStatus.terminado > 0 && (
           <div className="tile">
             <span className="tile-label">El que más lees</span>
             <b className="tile-text">{mostRead.genre}</b>
-            <span className="tile-sub">{mostRead.byStatus.terminado} de tus {totalRead} terminados</span>
+            <span className="tile-sub">{totalRead === 1 ? 'Tu único libro terminado' : `${mostRead.byStatus.terminado} de tus ${totalRead} terminados`}</span>
           </div>
         )}
         {bestRated && (
@@ -97,7 +97,7 @@ export function Stats({ onBack, onOpenBook }: { onBack: () => void; onOpenBook: 
           <div className="tile">
             <span className="tile-label">Tu pila pendiente</span>
             <b className="tile-text">{mostPending.genre}</b>
-            <span className="tile-sub">{mostPending.byStatus.pendiente} libros por leer</span>
+            <span className="tile-sub">{mostPending.byStatus.pendiente} {mostPending.byStatus.pendiente === 1 ? 'libro' : 'libros'} por leer</span>
           </div>
         )}
       </div>

@@ -116,7 +116,7 @@ function Shell() {
             <button className="icon-btn" aria-pressed={view === 'stats'} onClick={() => setView(view === 'stats' ? 'library' : 'stats')} aria-label="Estadísticas por género" title="Estadísticas por género"><BarChart /></button>
             <button className="icon-btn" aria-pressed={view === 'history'} onClick={() => setView(view === 'history' ? 'library' : 'history')} aria-label="Historial de lectura" title="Historial de lectura"><Clock /></button>
             <button className="icon-btn" onClick={() => setShowSettings(true)} aria-label="Preferencias" title="Preferencias"><SettingsIcon /></button>
-            <button className="btn btn-gold" onClick={() => setForm({})}><Plus size={16} /><span className="hide-sm">Añadir libro</span></button>
+            <button className="btn btn-gold" onClick={() => setForm({})} aria-label="Añadir libro"><Plus size={16} /><span className="hide-sm">Añadir libro</span></button>
           </nav>
         </header>
 

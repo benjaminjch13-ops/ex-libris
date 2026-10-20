@@ -117,7 +117,7 @@ function ReaderBody({ book, src, vp, reduce, fromStart, onClose, settings, updat
   const isPdf = src.kind === 'pdf'
   const closeWith = () => onClose(session.current.finished)
   // Two facing pages need room; on narrow screens the reader always shows one page.
-  const canSpread = vp.w >= 760 && vp.w / vp.h > 0.9
+  const canSpread = vp.w >= 760 && vp.h >= 520 && vp.w / vp.h > 0.9
   const pageMode = settings.pageMode ?? 'auto'
   const spread = pageMode === 'una' ? false : pageMode === 'dos' ? canSpread : vp.w >= 900 && vp.w / vp.h > 1.05
   const togglePageMode = () => {
@@ -129,7 +129,10 @@ function ReaderBody({ book, src, vp, reduce, fromStart, onClose, settings, updat
   // ---- page geometry ----
   const geom = useMemo(() => {
     const availW = vp.w - (spread ? 120 : 24)
-    const availH = vp.h - 128
+    const narrow = vp.w < 600
+    // on phones the title sits on its own row under the tools, so the bar is taller
+    const short = vp.h < 500 // phone held sideways: the bars are slimmer
+    const availH = vp.h - (narrow ? 150 : short ? 92 : 128)
     if (isPdf) {
       const a = src.aspect
       let pageH = Math.min(availH, (spread ? availW / 2 : availW) / a)
@@ -142,7 +145,8 @@ function ReaderBody({ book, src, vp, reduce, fromStart, onClose, settings, updat
       return { pageW: Math.floor(pageH * a), pageH: Math.floor(pageH) }
     }
     const pageW = Math.min(availW, 560)
-    const pageH = Math.min(availH, pageW / 0.56)
+    // phones are tall and narrow: let the page use that height instead of leaving empty bands
+    const pageH = Math.min(availH, pageW / (narrow ? 0.48 : 0.56))
     return { pageW: Math.floor(pageW), pageH: Math.floor(pageH) }
   }, [vp.w, vp.h, spread, isPdf, src])
 
@@ -532,7 +536,7 @@ function ReaderBody({ book, src, vp, reduce, fromStart, onClose, settings, updat
   return (
     <>
       <div className={`reader-bar${idle && !tocOpen && !flip ? ' is-idle' : ''}`} style={{ opacity: idle && !tocOpen ? 0 : 1 }}>
-        <button className="icon-btn" onClick={closeWith} aria-label="Volver a la biblioteca" title="Volver a la biblioteca (Esc)"><ChevronLeft /></button>
+        <button className="icon-btn hide-sm" onClick={closeWith} aria-label="Volver a la biblioteca" title="Volver a la biblioteca (Esc)"><ChevronLeft /></button>
         <button className="icon-btn" onClick={() => setTocOpen((v) => !v)} aria-pressed={tocOpen} aria-label="Índice y notas" title="Índice y notas"><List /></button>
         <button className="icon-btn" onClick={() => { if (isPdf) { notify('El subrayado de párrafos funciona en EPUB y libros de texto; en PDF usa las notas.', 'error'); return } setPlacing(false); setMarking((v) => !v) }} aria-pressed={marking} aria-label={marking ? 'Terminar de subrayar' : 'Subrayar párrafos'} title="Subrayar párrafos (S)"><Highlighter /></button>
         <button className="icon-btn" onClick={() => { setMarking(false); setPlacing((v) => !v) }} aria-pressed={placing} aria-label={placing ? 'Cancelar nota' : 'Pegar un post-it'} title="Pegar un post-it (N)"><StickyNote /></button>
@@ -610,7 +614,7 @@ function ReaderBody({ book, src, vp, reduce, fromStart, onClose, settings, updat
         <AnimatePresence>
           {marking && (
             <motion.div className="place-hint" initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} role="status">
-              <Highlighter size={16} /> Toca un párrafo para subrayarlo
+              <Highlighter size={16} /> <span>Toca un párrafo<span className="hide-sm"> para subrayarlo</span></span>
               <span className="mark-colors" role="radiogroup" aria-label="Color del subrayado">
                 {(['amarillo', 'rosa', 'verde', 'azul'] as NoteColor[]).map((c) => (
                   <button key={c} role="radio" aria-checked={markColor === c} aria-label={c} className={`note-swatch note-${c}`} onClick={() => setMarkColor(c)} />
@@ -621,7 +625,7 @@ function ReaderBody({ book, src, vp, reduce, fromStart, onClose, settings, updat
           )}
           {placing && (
             <motion.div className="place-hint" initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} role="status">
-              <StickyNote size={16} /> Toca el lugar de la página donde quieres pegar la nota
+              <StickyNote size={16} /> <span>Toca<span className="hide-sm"> el lugar de la página</span> donde quieres pegar la nota</span>
               <button onClick={() => setPlacing(false)}>Cancelar</button>
             </motion.div>
           )}

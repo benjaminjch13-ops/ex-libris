@@ -20,9 +20,10 @@ export interface TextBox {
 
 export function textBox(pageW: number, pageH: number, fontScale: number): TextBox {
   const mx = Math.round(Math.max(18, pageW * 0.1))
-  const top = Math.round(Math.max(30, pageH * 0.085))
+  const top = Math.round(Math.max(38, pageH * 0.085))
   const bottom = Math.round(Math.max(30, pageH * 0.085))
-  const base = Math.min(19, Math.max(14.5, pageW / 25))
+  // short, wide pages (phone in landscape) would otherwise get a big type size and only a few lines
+  const base = Math.min(19, Math.max(14.5, Math.min(pageW / 25, pageH / 16)))
   return {
     pageW, pageH, mx, top, bottom,
     W: Math.floor(pageW - mx * 2),

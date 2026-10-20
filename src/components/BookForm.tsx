@@ -84,6 +84,8 @@ export function BookForm({ book, onClose, onDelete }: { book?: Book; onClose: ()
         description: draft.description.trim(),
         category: draft.category.trim() || 'Sin categoría',
         palette: draft.coverBlob || !editing ? palette : draft.palette,
+        // marked as finished from the form: record when, so the review shows a date instead of «—»
+        finishedAt: draft.status === 'terminado' ? draft.finishedAt ?? Date.now() : draft.finishedAt,
       }
       await saveBook(final, file ?? undefined)
       notify(editing ? 'Cambios guardados' : `«${final.title}» ya está en la estantería`)
@@ -116,7 +118,7 @@ export function BookForm({ book, onClose, onDelete }: { book?: Book; onClose: ()
     >
       <form id="book-form" onSubmit={submit} noValidate>
         <div className="form-grid">
-          <div>
+          <div className="cover-col">
             <div className="cover-pick"><Cover book={previewBook} /></div>
             <div className="cover-actions">
               <button type="button" className="btn small-btn" onClick={() => coverInput.current?.click()}><Upload size={14} /> {hasCover ? 'Cambiar portada' : 'Subir portada'}</button>
@@ -151,7 +153,9 @@ export function BookForm({ book, onClose, onDelete }: { book?: Book; onClose: ()
                 ) : (
                   <>
                     <Upload size={22} />
-                    <span><b>Arrastra un EPUB o PDF</b> o haz clic para elegirlo</span>
+                    {window.matchMedia?.('(hover: none)').matches
+                      ? <span><b>Toca para elegir un EPUB o PDF</b></span>
+                      : <span><b>Arrastra un EPUB o PDF</b> o haz clic para elegirlo</span>}
                   </>
                 )}
               </div>

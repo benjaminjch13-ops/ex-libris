@@ -127,7 +127,8 @@ export function ReviewDialog({ book, justFinished, onClose }: { book: Book; just
           <div className="eyebrow" style={{ color: 'var(--gold)' }}>{book.category}</div>
           <h3 className="review-title">{book.title}</h3>
           <div className="review-by">{book.author}</div>
-
+        </div>
+        <div className="review-facts">
           <dl className="review-stats">
             {!stats.sessions && !stats.started ? (
               <>
@@ -142,7 +143,9 @@ export function ReviewDialog({ book, justFinished, onClose }: { book: Book; just
             <div><dt>Notas</dt><dd>{book.notes?.length ?? 0}</dd></div>
             </>)}
           </dl>
-          <p className="review-dates">{stats.started ? <>Empezado el {fmtDate(stats.started)} · </> : null}Terminado el {fmtDate(stats.finished)}{book.pages ? ` · ${book.pages} páginas` : ''}</p>
+          {(stats.sessions > 0 || !!stats.started) && (
+            <p className="review-dates">{stats.started ? <>Empezado el {fmtDate(stats.started)} · </> : null}Terminado el {fmtDate(stats.finished)}{book.pages ? ` · ${book.pages} páginas` : ''}</p>
+          )}
         </div>
       </div>
 

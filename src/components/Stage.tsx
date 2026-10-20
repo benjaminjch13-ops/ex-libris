@@ -41,7 +41,7 @@ function useGeometry() {
       const cx = Math.max(w * 0.3, W / 2 + 60)
       return { wide, W, H, cx, cy: h / 2, vw: w, vh: h }
     }
-    const H = Math.min(h * 0.38, 330)
+    const H = Math.min(h * 0.34, 300)
     const W = H * 0.67
     return { wide, W, H, cx: w / 2, cy: 36 + H / 2 + 20, vw: w, vh: h }
   }, [w, h])
@@ -53,6 +53,7 @@ export function Stage({ book, origin, initial, onRead, onClosed, onEdit, onRevie
   const g = useGeometry()
   const [phase, setPhase] = useState<StagePhase>(initial === 'enter' ? 'enter' : 'return')
   const fromStartRef = useRef(false)
+  const [descOpen, setDescOpen] = useState(false)
   const primary = useRef<HTMLButtonElement>(null)
 
   const dims = useMemo(() => ({ ...bookDims(book, g.H), w: g.W, h: g.H }), [book, g.H, g.W])
@@ -187,7 +188,7 @@ export function Stage({ book, origin, initial, onRead, onClosed, onEdit, onRevie
   const pct = Math.round((book.progress?.percent ?? 0) * 100)
   const previewStyle: React.CSSProperties = g.wide
     ? { left: g.cx + g.W / 2 + 64, top: '50%', translate: '0 -50%', width: Math.min(480, g.vw - (g.cx + g.W / 2 + 64) - 40) }
-    : { left: 0, right: 0, top: g.cy + g.H / 2 + 34, paddingBottom: 40, margin: '0 auto' }
+    : { left: 0, right: 0, top: g.cy + g.H / 2 + 34, paddingBottom: 'calc(40px + env(safe-area-inset-bottom, 0px))', margin: '0 auto' }
 
   return (
     <div className="stage" role="dialog" aria-modal="true" aria-label={`Vista previa de ${book.title}`} style={{ overflowY: g.wide ? 'hidden' : 'auto' }}>
@@ -219,7 +220,10 @@ export function Stage({ book, origin, initial, onRead, onClosed, onEdit, onRevie
               <Heart size={13} filled={book.favorite} /> {book.favorite ? 'Favorito' : 'Marcar favorito'}
             </button>
           </div>
-          {book.description && <p className="desc">{book.description}</p>}
+          {book.description && <p className={`desc${!g.wide && !descOpen && book.description.length > 280 ? ' clamped' : ''}`}>{book.description}</p>}
+          {book.description && !g.wide && book.description.length > 280 && (
+            <button className="desc-more" onClick={() => setDescOpen((v) => !v)} aria-expanded={descOpen}>{descOpen ? 'Ver menos' : 'Leer descripción completa'}</button>
+          )}
           <dl className="facts">
             {book.pages ? <div><dt>Páginas</dt><dd>{book.format === 'pdf' || book.format === 'catalogo' ? book.pages : `≈ ${book.pages}`}</dd></div> : null}
             {book.year ? <div><dt>Publicado</dt><dd>{book.year < 0 ? `${-book.year} a. C.` : book.year}</dd></div> : null}
