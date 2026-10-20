@@ -2,7 +2,6 @@ import { memo, useEffect, useState } from 'react'
 import type { Book, Chapter } from '../../types'
 import type { PageRef, TextBox } from './pagination'
 import type { PDFDocumentProxy } from '../../lib/pdf'
-import { renderPageBlob } from '../../lib/pdf'
 import { TitlePage } from '../Stage'
 
 export type Side = 'l' | 'r' | 's'
@@ -74,7 +73,7 @@ export class PdfCache {
       this.map.set(key, p)
       return p
     }
-    p = renderPageBlob(this.doc, index, w).then((b) => (b ? URL.createObjectURL(b) : undefined)).catch(() => undefined)
+    p = import('../../lib/pdf').then(({ renderPageBlob }) => renderPageBlob(this.doc, index, w)).then((b) => (b ? URL.createObjectURL(b) : undefined)).catch(() => undefined)
     this.map.set(key, p)
     if (this.map.size > this.limit) {
       const [oldKey, old] = this.map.entries().next().value!

@@ -1,23 +1,32 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import type { Book } from './types'
 import { LibraryProvider, useLibrary } from './state/library'
 import { Library, type OpenOrigin } from './components/Library'
 import { Stage } from './components/Stage'
-import { Reader } from './components/reader/Reader'
-import { BookForm } from './components/BookForm'
-import { Collection } from './components/Collection'
-import { History } from './components/History'
-import { ReviewDialog } from './components/ReviewDialog'
-import { Stats } from './components/Stats'
 import { ConfirmDialog, Modal } from './components/Modal'
 import { applyFilters, EMPTY_FILTERS, type Filters } from './lib/filters'
 import { Check, Clock, Close, Plus, Search, Settings as SettingsIcon, Books, BarChart, Queue, Bag, More, Shelf, Sparkle } from './components/Icons'
-import { Recs } from './components/Recs'
-import { Tbr } from './components/Tbr'
-import { Wishlist, type SharedIn } from './components/Wishlist'
-import { DropDialog, NextUpDialog, PageDialog, isManual } from './components/Flows'
+import type { SharedIn } from './components/Wishlist'
+import { isManual } from './components/Flows'
+import { DataPanel } from './components/DataPanel'
 import type { AddKind } from './components/BookForm'
+
+// Everything not needed for the first screen loads on demand (and is cached for offline use by the service worker).
+const Reader = lazy(() => import('./components/reader/Reader').then((m) => ({ default: m.Reader })))
+const BookForm = lazy(() => import('./components/BookForm').then((m) => ({ default: m.BookForm })))
+const Collection = lazy(() => import('./components/Collection').then((m) => ({ default: m.Collection })))
+const History = lazy(() => import('./components/History').then((m) => ({ default: m.History })))
+const Stats = lazy(() => import('./components/Stats').then((m) => ({ default: m.Stats })))
+const Tbr = lazy(() => import('./components/Tbr').then((m) => ({ default: m.Tbr })))
+const Wishlist = lazy(() => import('./components/Wishlist').then((m) => ({ default: m.Wishlist })))
+const Recs = lazy(() => import('./components/Recs').then((m) => ({ default: m.Recs })))
+const ReviewDialog = lazy(() => import('./components/ReviewDialog').then((m) => ({ default: m.ReviewDialog })))
+const DropDialog = lazy(() => import('./components/Flows').then((m) => ({ default: m.DropDialog })))
+const PageDialog = lazy(() => import('./components/Flows').then((m) => ({ default: m.PageDialog })))
+const NextUpDialog = lazy(() => import('./components/Flows').then((m) => ({ default: m.NextUpDialog })))
+
+const ViewLoading = () => <div className="empty-state" role="status"><div className="spin" /></div>
 
 type View = 'library' | 'collection' | 'history' | 'stats' | 'tbr' | 'wishlist' | 'recs'
 
@@ -67,6 +76,18 @@ function Shell() {
   const install = async () => { await installEvt?.prompt().catch(() => {}); setInstallEvt(null) }
 
   useEffect(() => { window.scrollTo({ top: 0 }) }, [view])
+
+  // after restoring a backup the page reloads; say what came back
+  useEffect(() => {
+    if (!ready) return
+    try {
+      const r = sessionStorage.getItem('exl-restored')
+      if (!r) return
+      sessionStorage.removeItem('exl-restored')
+      const { added, updated } = JSON.parse(r) as { added: number; updated: number }
+      notify(`Respaldo restaurado: ${added} ${added === 1 ? 'libro nuevo' : 'libros nuevos'}${updated ? `, ${updated} actualizados` : ''}`)
+    } catch { /* ignore */ }
+  }, [ready, notify])
 
   const visible = useMemo(() => applyFilters(books, filters), [books, filters])
   const stageBook = stage ? books.find((b) => b.id === stage.id) : undefined
@@ -166,6 +187,7 @@ function Shell() {
         ) : (
           <AnimatePresence mode="wait">
             <motion.main key={view} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.25 }}>
+              <Suspense fallback={<ViewLoading />}>
               {view === 'library' && (
                 <Library
                   visible={visible}
@@ -209,6 +231,7 @@ function Shell() {
               )}
               {view === 'history' && <History onBack={() => setView('library')} />}
               {view === 'stats' && <Stats onBack={() => setView('library')} onOpenBook={openFromElement} />}
+              </Suspense>
             </motion.main>
           </AnimatePresence>
         )}
@@ -235,15 +258,15 @@ function Shell() {
         />
       )}
 
-      <AnimatePresence>
+      <Suspense fallback={null}><AnimatePresence>
         {reading && readingBook && <Reader key={reading.id} book={readingBook} fromStart={reading.fromStart} onClose={closeReader} />}
-      </AnimatePresence>
+      </AnimatePresence></Suspense>
 
-      <AnimatePresence>
+      <Suspense fallback={null}><AnimatePresence>
         {form && (
           <BookForm key={form.book?.id ?? 'new'} book={form.book} kind={form.kind} preset={form.preset} onSaved={form.onSaved} onClose={() => setForm(null)} onDelete={(b) => setConfirmDel(b)} />
         )}
-      </AnimatePresence>
+      </AnimatePresence></Suspense>
 
       <AnimatePresence>
         {confirmDel && (
@@ -257,22 +280,22 @@ function Shell() {
         )}
       </AnimatePresence>
 
-      <AnimatePresence>
+      <Suspense fallback={null}><AnimatePresence>
         {review && books.find((b) => b.id === review.id) && (
           <ReviewDialog key={review.id} book={books.find((b) => b.id === review.id)!} justFinished={review.justFinished} onClose={() => { if (review.justFinished) setNextUp(review.id); setReview(null) }} />
         )}
-      </AnimatePresence>
+      </AnimatePresence></Suspense>
 
       <AnimatePresence>{showSettings && <SettingsDialog onClose={() => setShowSettings(false)} />}</AnimatePresence>
-      <AnimatePresence>
+      <Suspense fallback={null}><AnimatePresence>
         {drop && <DropDialog key={drop.id} book={books.find((b) => b.id === drop.id) ?? drop} onClose={() => setDrop(null)} onDropped={(id) => { if (stage?.id === id) setStage(null); setNextUp(id) }} />}
-      </AnimatePresence>
-      <AnimatePresence>
+      </AnimatePresence></Suspense>
+      <Suspense fallback={null}><AnimatePresence>
         {pageFor && <PageDialog key={pageFor.id} book={books.find((b) => b.id === pageFor.id) ?? pageFor} onClose={() => setPageFor(null)} onFinished={(id) => setReview({ id, justFinished: true })} />}
-      </AnimatePresence>
-      <AnimatePresence>
+      </AnimatePresence></Suspense>
+      <Suspense fallback={null}><AnimatePresence>
         {nextUp && <NextUpDialog afterId={nextUp} onClose={() => setNextUp(null)} onStart={(b) => { setStage(null); startBook(b) }} onGoTbr={() => { setStage(null); setView('tbr') }} />}
-      </AnimatePresence>
+      </AnimatePresence></Suspense>
 
       {/* phone: sections live in a bottom bar, like an app */}
       <nav className="tabbar" aria-label="Secciones">
@@ -332,7 +355,7 @@ function SettingsDialog({ onClose }: { onClose: () => void }) {
           <label htmlFor="s-name">Tu nombre</label>
           <input id="s-name" value={readerName} onChange={(e) => setReaderName(e.target.value)} maxLength={30} placeholder="Para el saludo de bienvenida" />
         </div>
-        <p className="hint" style={{ color: 'var(--muted)', fontSize: 13, lineHeight: 1.5 }}>Tus libros, portadas y progreso se guardan solo en este navegador.</p>
+        <DataPanel />
         {__BETA__ && (
           <div className="install-help">
             <b>Instalar en el teléfono</b>

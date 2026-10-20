@@ -1,6 +1,5 @@
 import type { Book } from '../types'
-import { BookFileError, parseEpub } from './epub'
-import { pdfMeta } from './pdf'
+import { BookFileError } from './errors'
 import { paletteFor, paletteFromImage } from './color'
 
 export const MAX_FILE_MB = 150
@@ -32,9 +31,12 @@ export async function inspectFile(file: File): Promise<FileInfo> {
     throw new BookFileError('Formato no compatible. Sube un archivo EPUB o PDF.')
   }
   if (kind === 'pdf') {
+    // the PDF and EPUB engines load only when a file of that kind is actually opened
+    const { pdfMeta } = await import('./pdf')
     const m = await pdfMeta(file)
     return { format: 'pdf', ...m }
   }
+  const { parseEpub } = await import('./epub')
   const parsed = await parseEpub(file)
   parsed.urls.forEach((u) => URL.revokeObjectURL(u))
   const text = parsed.chapters.map((c) => c.html.replace(/<[^>]+>/g, ' ')).join(' ')

@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import type { Book, DropReason, HistoryEntry, Progress, Settings, Status, WishItem } from '../types'
 import { DEFAULT_SETTINGS, loadSettings, saveSettings, store } from '../lib/db'
 import { genreFromCategory } from '../lib/genres'
+import { compressCover, protectStorage } from '../lib/backup'
 
 
 interface Toast { id: number; text: string; tone?: 'ok' | 'error' }
@@ -9,6 +10,8 @@ interface Toast { id: number; text: string; tone?: 'ok' | 'error' }
 interface LibraryCtx {
   ready: boolean
   persistent: boolean
+  /** the browser agreed not to evict this site's data (null: can't tell) */
+  storageProtected: boolean | null
   books: Book[]
   history: HistoryEntry[]
   settings: Settings
@@ -46,6 +49,7 @@ export function useLibrary() {
 export function LibraryProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false)
   const [persistent, setPersistent] = useState(true)
+  const [storageProtected, setStorageProtected] = useState<boolean | null>(null)
   const [books, setBooks] = useState<Book[]>([])
   const [history, setHistory] = useState<HistoryEntry[]>([])
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS)
@@ -79,6 +83,21 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
       setTbrRaw((await s.getSetting<string[]>('tbr').catch(() => undefined)) ?? [])
       setWishes((await s.getSetting<WishItem[]>('wishlist').catch(() => undefined)) ?? [])
       setReady(true)
+      setStorageProtected(await protectStorage())
+      // shrink oversized covers saved by earlier versions, quietly, after the shelf is up
+      setTimeout(async () => {
+        for (const b of list) {
+          if (!b.coverBlob || b.coverBlob.size < 400 * 1024) continue
+          const small = await compressCover(b.coverBlob)
+          if (small === b.coverBlob) continue
+          const cur = booksRef.current.find((x) => x.id === b.id)
+          if (!cur || cur.coverBlob !== b.coverBlob) continue
+          const nb = { ...cur, coverBlob: small }
+          await s.putBook(nb).catch(() => {})
+          booksRef.current = booksRef.current.map((x) => (x.id === b.id ? nb : x))
+          setBooks((l) => l.map((x) => (x.id === b.id ? nb : x)))
+        }
+      }, 4000)
     })()
   }, [])
 
@@ -103,8 +122,9 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     await s.putBook(b)
   }, [])
 
-  const saveBook = useCallback(async (b: Book, file?: Blob) => {
+  const saveBook = useCallback(async (input: Book, file?: Blob) => {
     const s = await store()
+    const b = input.coverBlob ? { ...input, coverBlob: await compressCover(input.coverBlob) } : input
     if (file) await s.putFile(b.id, file)
     await s.putBook(b)
     setBooks((list) => (list.some((x) => x.id === b.id) ? list.map((x) => (x.id === b.id ? b : x)) : [...list, b]))
@@ -221,10 +241,10 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
   const tbr = useMemo(() => tbrRaw.filter((id) => (id.startsWith('w:') ? wishes.some((w) => `w:${w.id}` === id) : books.some((b) => b.id === id))), [tbrRaw, books, wishes])
 
   const value = useMemo<LibraryCtx>(() => ({
-    ready, persistent, books, history, settings, coverUrl, saveBook, removeBook, patchBook,
+    ready, persistent, storageProtected, books, history, settings, coverUrl, saveBook, removeBook, patchBook,
     toggleFavorite, setStatus, saveProgress, addHistory, updateSettings, toasts, notify,
     tbr, setTbr, addToTbr, removeFromTbr, dropBook, wishes, saveWish, removeWish, wishBought,
-  }), [ready, persistent, books, history, settings, coverUrl, saveBook, removeBook, patchBook, toggleFavorite, setStatus, saveProgress, addHistory, updateSettings, toasts, notify, tbr, setTbr, addToTbr, removeFromTbr, dropBook, wishes, saveWish, removeWish, wishBought])
+  }), [ready, persistent, storageProtected, books, history, settings, coverUrl, saveBook, removeBook, patchBook, toggleFavorite, setStatus, saveProgress, addHistory, updateSettings, toasts, notify, tbr, setTbr, addToTbr, removeFromTbr, dropBook, wishes, saveWish, removeWish, wishBought])
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }

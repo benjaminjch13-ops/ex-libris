@@ -17,7 +17,8 @@ export interface ParsedEpub {
   urls: string[]
 }
 
-export class BookFileError extends Error {}
+import { BookFileError } from './errors'
+export { BookFileError }
 
 const KEEP = new Set([
   'p', 'div', 'span', 'section', 'article', 'header', 'footer', 'aside', 'main', 'nav',

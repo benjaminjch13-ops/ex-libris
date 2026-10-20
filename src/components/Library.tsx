@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import type { Book, Status } from '../types'
 import { useLibrary } from '../state/library'
@@ -8,7 +8,9 @@ import { ChevronRight, Heart, Plus } from './Icons'
 import type { Filters } from '../lib/filters'
 import { staleBook, weeksSince } from './Flows'
 import { TbrNext } from './Tbr'
-import { RecsTeaser } from './Recs'
+
+// the suggestions catalogue is loaded after the shelf is on screen
+const RecsTeaser = lazy(() => import('./Recs').then((m) => ({ default: m.RecsTeaser })))
 
 export interface OpenOrigin {
   rect: DOMRect
@@ -142,7 +144,7 @@ export function Library({ visible: all, filters, setFilters, selectedId, onOpen,
         <section aria-label="Siguiente lectura"><TbrNext onStart={onStart} onOpen={onTbr} /></section>
       )}
 
-      {!filtering && <RecsTeaser onOpen={onRecs} />}
+      {!filtering && <Suspense fallback={null}><RecsTeaser onOpen={onRecs} /></Suspense>}
 
       <section aria-labelledby="shelves-h">
         <div className="section-head">

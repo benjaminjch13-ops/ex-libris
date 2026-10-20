@@ -1,6 +1,6 @@
 import type { Book, Chapter, TocEntry } from '../types'
-import { BookFileError, parseEpub } from './epub'
-import { openPdf, pdfToc, type PDFDocumentProxy } from './pdf'
+import { BookFileError } from './errors'
+import type { PDFDocumentProxy } from './pdf'
 import { store } from './db'
 
 export type ReaderSource =
@@ -40,6 +40,7 @@ export async function loadSource(book: Book): Promise<ReaderSource> {
   const file = await s.getFile(book.id)
   if (!file) throw new BookFileError('No se encontró el archivo de este libro. Edítalo y vuelve a cargar el archivo.')
   if (book.format === 'epub') {
+    const { parseEpub } = await import('./epub')
     const parsed = await parseEpub(file)
     return {
       kind: 'flow',
@@ -48,6 +49,7 @@ export async function loadSource(book: Book): Promise<ReaderSource> {
       dispose: () => parsed.urls.forEach((u) => URL.revokeObjectURL(u)),
     }
   }
+  const { openPdf, pdfToc } = await import('./pdf')
   const doc = await openPdf(file)
   const first = await doc.getPage(1)
   const vp = first.getViewport({ scale: 1 })

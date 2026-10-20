@@ -2,7 +2,7 @@ import * as pdfjs from 'pdfjs-dist'
 import type { PDFDocumentProxy } from 'pdfjs-dist'
 import workerCode from 'pdfjs-dist/build/pdf.worker.min.mjs?raw'
 import type { TocEntry } from '../types'
-import { BookFileError } from './epub'
+import { BookFileError } from './errors'
 
 // The worker ships inside the page and starts from a blob URL, so the app works as one self-contained file.
 let workerReady = false
