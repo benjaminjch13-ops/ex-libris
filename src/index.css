@@ -1473,3 +1473,59 @@ button.grow:hover { background: rgb(var(--fg-rgb) / .04); }
 .bulk .field .hint { display: block; margin-top: 6px; }
 .bulk .bulk-actions { position: sticky; bottom: -24px; margin: 18px -24px -24px; padding: 14px 24px 22px; background: linear-gradient(rgb(var(--room-rgb) / 0), var(--room-2) 14px); z-index: 2; }
 .bulk-progress .bulk-actions { position: static; background: none; margin: 8px 0 0; padding: 0; }
+
+/* ---------- photographed spines & covers ---------- */
+.spine.spine-photo { padding: 0; background: #1a1410; }
+.spine-photo img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+/* the same soft roundness the drawn spines have, so a photo sits on the shelf like a real book */
+.spine-photo::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(90deg, rgba(0, 0, 0, .38), rgba(255, 255, 255, .08) 28%, rgba(255, 255, 255, .02) 55%, rgba(0, 0, 0, .34)); }
+.cover-pick-row { display: flex; gap: 8px; align-items: stretch; }
+.cover-pick-row .cover-pick { flex: 1; min-width: 0; }
+.spine-pick { flex: none; width: 30px; border-radius: 3px; border: 1px dashed rgb(var(--fg-rgb) / .3); display: grid; place-items: center; overflow: hidden; color: var(--muted); transition: border-color .2s, background .2s, transform .15s var(--ease-out); position: relative; }
+.spine-pick:hover { border-color: var(--gold); background: var(--gold-dim); }
+.spine-pick:active { transform: scale(.96); }
+.spine-pick span { writing-mode: vertical-rl; transform: rotate(180deg); font-size: 11px; letter-spacing: .2em; text-transform: uppercase; }
+.spine-pick.has { border: 0; box-shadow: 0 10px 22px rgba(0, 0, 0, .45); }
+.spine-pick img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.photo-btns { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.photo-btns + input + .cover-actions, .photo-btns ~ .cover-actions { margin-top: 8px; }
+@media (max-width: 640px) {
+  .cover-col { grid-template-columns: 112px 1fr; }
+  .cover-col .cover-pick-row { grid-row: 1 / span 4; gap: 6px; }
+  .cover-col .cover-pick-row .cover-pick { grid-row: auto; }
+  .spine-pick { width: 20px; }
+  .spine-pick span { font-size: 9px; letter-spacing: .12em; }
+  .photo-btns { margin-top: 0; }
+}
+
+/* crop a photo of the real book */
+.crop { display: grid; gap: 14px; animation: pref-in .28s var(--ease-out); }
+.crop-head { display: grid; gap: 4px; }
+.crop-head b { font-family: var(--f-display); font-weight: 400; font-size: 20px; color: var(--ivory); }
+.crop-head span { font-size: 13.5px; color: var(--ivory-dim); line-height: 1.45; }
+.crop-stage { display: grid; place-items: center; background: #0d0a08; border-radius: 12px; padding: 14px; border: 1px solid var(--line); }
+.crop-box { position: relative; line-height: 0; touch-action: none; user-select: none; -webkit-user-select: none; }
+.crop-box img { max-width: 100%; max-height: min(58vh, 520px); display: block; border-radius: 4px; }
+.crop-rect { position: absolute; box-shadow: 0 0 0 9999px rgba(8, 6, 5, .62); outline: 1.5px solid #f3e7cf; cursor: move; transition: box-shadow .2s; }
+.crop-box.dragging .crop-rect { box-shadow: 0 0 0 9999px rgba(8, 6, 5, .48); }
+.crop-grid { position: absolute; inset: 0; pointer-events: none; background:
+  linear-gradient(90deg, transparent calc(33.33% - .5px), rgba(243, 231, 207, .35) calc(33.33% - .5px) calc(33.33% + .5px), transparent calc(33.33% + .5px) calc(66.66% - .5px), rgba(243, 231, 207, .35) calc(66.66% - .5px) calc(66.66% + .5px), transparent calc(66.66% + .5px)),
+  linear-gradient(0deg, transparent calc(33.33% - .5px), rgba(243, 231, 207, .35) calc(33.33% - .5px) calc(33.33% + .5px), transparent calc(33.33% + .5px) calc(66.66% - .5px), rgba(243, 231, 207, .35) calc(66.66% - .5px) calc(66.66% + .5px), transparent calc(66.66% + .5px));
+  opacity: 0; transition: opacity .2s; }
+.crop-box.dragging .crop-grid { opacity: 1; }
+.crop-h { position: absolute; width: 26px; height: 26px; margin: -13px; border-radius: 50%; background: #f3e7cf; box-shadow: 0 2px 10px rgba(0, 0, 0, .5), 0 0 0 4px rgb(207 168 100 / .35); }
+.crop-h::after { content: ""; position: absolute; inset: -10px; } /* bigger touch target */
+.crop-h.nw { left: 0; top: 0; cursor: nwse-resize; } .crop-h.ne { left: 100%; top: 0; cursor: nesw-resize; }
+.crop-h.sw { left: 0; top: 100%; cursor: nesw-resize; } .crop-h.se { left: 100%; top: 100%; cursor: nwse-resize; }
+.crop-busy { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(8, 6, 5, .35); }
+.crop-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+@media (max-width: 480px) { .crop-actions .btn { padding: 8px 13px; } }
+.crop-actions { justify-content: space-between; row-gap: 10px; }
+.crop-tools { display: flex; gap: 8px; }
+.crop-tools:last-child { margin-left: auto; }
+@media (max-width: 640px) {
+  /* paper books: the photos of the real book come first, beside the cover thumbnail */
+  .form-grid.paper .cover-col { order: 0; }
+  .form-grid.paper .cover-col .photo-btns { display: grid; gap: 8px; }
+  .form-grid.paper .cover-col .photo-btns .btn { justify-content: flex-start; }
+}

@@ -13,7 +13,7 @@ interface BackupJson {
   app: 'ex-libris'
   version: 1
   exportedAt: number
-  books: (Omit<Book, 'coverBlob'> & { cover?: string; file?: string })[]
+  books: (Omit<Book, 'coverBlob' | 'spineBlob'> & { cover?: string; spine?: string; file?: string })[]
   history: HistoryEntry[]
   prefs?: Settings
   tbr?: string[]
@@ -41,8 +41,12 @@ export async function exportLibrary(opts: { includeFiles: boolean; onProgress?: 
   const out: BackupJson['books'] = []
   let i = 0
   for (const b of books) {
-    const { coverBlob, ...rest } = b
+    const { coverBlob, spineBlob, ...rest } = b
     const entry: BackupJson['books'][number] = { ...rest }
+    if (spineBlob) {
+      entry.spine = `lomos/${b.id}.${ext(spineBlob, 'jpg')}`
+      zip.file(entry.spine, spineBlob)
+    }
     if (coverBlob) {
       entry.cover = `portadas/${b.id}.${ext(coverBlob, 'jpg')}`
       zip.file(entry.cover, coverBlob)
@@ -89,10 +93,12 @@ export async function importLibrary(file: File): Promise<{ added: number; update
   const current = new Map((await s.getBooks()).map((b) => [b.id, b]))
   let added = 0, updated = 0
   for (const entry of data.books) {
-    const { cover, file: filePath, ...rest } = entry
+    const { cover, spine, file: filePath, ...rest } = entry
+    const spineEntry = spine ? zip.file(spine) : null
+    const spineBlob = spineEntry ? await spineEntry.async('blob').then((b) => new Blob([b], { type: 'image/jpeg' })) : current.get(entry.id)?.spineBlob
     const coverEntry = cover ? zip.file(cover) : null
     const coverBlob = coverEntry ? await coverEntry.async('blob').then((b) => new Blob([b], { type: cover!.endsWith('png') ? 'image/png' : cover!.endsWith('webp') ? 'image/webp' : 'image/jpeg' })) : current.get(entry.id)?.coverBlob
-    const book: Book = { ...(rest as Book), coverBlob }
+    const book: Book = { ...(rest as Book), coverBlob, spineBlob }
     const fileEntry = filePath ? zip.file(filePath) : null
     if (fileEntry) {
       const f = await fileEntry.async('blob')
@@ -158,11 +164,11 @@ export async function storageUse(): Promise<{ used: number; quota: number } | nu
 }
 
 /** Covers from EPUBs and catalogues can weigh megabytes; ~900px tall is plenty for every place they are shown. */
-export async function compressCover(blob: Blob): Promise<Blob> {
+export async function compressCover(blob: Blob, maxH = 900, maxW = 620): Promise<Blob> {
   if (blob.size < 220 * 1024 || typeof createImageBitmap !== 'function') return blob
   try {
     const bmp = await createImageBitmap(blob)
-    const scale = Math.min(1, 900 / bmp.height, 620 / bmp.width)
+    const scale = Math.min(1, maxH / bmp.height, maxW / bmp.width)
     const w = Math.round(bmp.width * scale), h = Math.round(bmp.height * scale)
     const c = document.createElement('canvas')
     c.width = w; c.height = h

@@ -80,6 +80,15 @@ export function Cover({ book, className = '', style }: { book: Book; className?:
 }
 
 function Spine({ book }: { book: Book }) {
+  const { spineUrl } = useLibrary()
+  const photo = spineUrl(book)
+  if (photo) {
+    return (
+      <div className="spine spine-photo">
+        <img src={photo} alt="" draggable={false} />
+      </div>
+    )
+  }
   const p = book.palette
   const variant = hash(book.id + 'spine') % 3
   const surname = (book.author || '').split(/[,\s]+/).filter(Boolean).pop() ?? ''
@@ -125,8 +134,13 @@ export function Book3D({ book, dims, className = '', style, innerPage }: {
   )
 }
 
+const clamp = (v: number, a: number, b: number) => Math.min(b, Math.max(a, v))
+
+/** Size of the 3D book. With photos of the real book, its cover proportions and spine thickness are kept. */
 export function bookDims(book: Book, height: number): BookDims {
+  const k = height / 190
+  const w = Math.round(height * clamp(book.coverRatio ?? 0.67, 0.52, 0.85))
+  if (book.spineRatio) return { h: height, w, d: Math.round(clamp(height * book.spineRatio, 9 * k, 84 * k)) }
   const pages = book.pages ?? 120
-  const d = Math.round(Math.min(Math.max(pages / 7 + 24, 28), 58) * (height / 190))
-  return { h: height, w: Math.round(height * 0.67), d }
+  return { h: height, w, d: Math.round(Math.min(Math.max(pages / 7 + 24, 28), 58) * k) }
 }

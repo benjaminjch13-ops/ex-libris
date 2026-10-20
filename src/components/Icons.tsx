@@ -36,6 +36,8 @@ export const TwoPages = ({ size, ...p }: P) => <svg {...base(size)} {...p}><path
 export const Play = ({ size, ...p }: P) => <svg {...base(size)} {...p}><path d="M8 5.5v13l10.5-6.5L8 5.5Z" fill="currentColor" /></svg>
 export const Pause = ({ size, ...p }: P) => <svg {...base(size)} {...p}><path d="M8.5 5.5v13M15.5 5.5v13" strokeWidth="2.6" /></svg>
 export const Timer = ({ size, ...p }: P) => <svg {...base(size)} {...p}><circle cx="12" cy="13.5" r="7.5" /><path d="M12 9.5v4l2.5 1.5M10 3h4M18.5 6.5 20 5" /></svg>
+export const Camera = ({ size, ...p }: P) => <svg {...base(size)} {...p}><path d="M4 8.5h3l1.6-2.5h6.8L17 8.5h3v10H4z" /><circle cx="12" cy="13.2" r="3.4" /></svg>
+export const Rotate = ({ size, ...p }: P) => <svg {...base(size)} {...p}><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3M19.5 4.5v4h-4" /></svg>
 export const Queue = ({ size, ...p }: P) => <svg {...base(size)} {...p}><path d="M4 6h11M4 12h11M4 18h7" /><path d="m16 15 3 3-3 3" /><path d="M19 18h-5" /></svg>
 export const Bag = ({ size, ...p }: P) => <svg {...base(size)} {...p}><path d="M5 8h14l-1 12H6L5 8Z" /><path d="M9 10V6.5a3 3 0 0 1 6 0V10" /></svg>
 export const More = ({ size, ...p }: P) => <svg {...base(size)} {...p}><circle cx="5.5" cy="12" r="1.3" fill="currentColor" /><circle cx="12" cy="12" r="1.3" fill="currentColor" /><circle cx="18.5" cy="12" r="1.3" fill="currentColor" /></svg>

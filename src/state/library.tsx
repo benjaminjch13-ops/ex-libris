@@ -18,6 +18,7 @@ interface LibraryCtx {
   history: HistoryEntry[]
   settings: Settings
   coverUrl: (b: Book) => string | undefined
+  spineUrl: (b: Book) => string | undefined
   saveBook: (b: Book, file?: Blob) => Promise<void>
   removeBook: (id: string) => Promise<void>
   patchBook: (id: string, patch: Partial<Book>) => Promise<void>
@@ -105,6 +106,17 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     })()
   }, [])
 
+  const spineUrls = useRef(new Map<string, { blob: Blob; url: string }>())
+  const spineUrl = useCallback((b: Book) => {
+    if (!b.spineBlob) return undefined
+    const cached = spineUrls.current.get(b.id)
+    if (cached && cached.blob === b.spineBlob) return cached.url
+    if (cached) URL.revokeObjectURL(cached.url)
+    const url = URL.createObjectURL(b.spineBlob)
+    spineUrls.current.set(b.id, { blob: b.spineBlob, url })
+    return url
+  }, [])
+
   const coverUrl = useCallback((b: Book) => {
     if (!b.coverBlob) return b.coverRemote
     const cached = urls.current.get(b.id)
@@ -128,7 +140,9 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
 
   const saveBook = useCallback(async (input: Book, file?: Blob) => {
     const s = await store()
-    const b = input.coverBlob ? { ...input, coverBlob: await compressCover(input.coverBlob) } : input
+    let b = input.coverBlob ? { ...input, coverBlob: await compressCover(input.coverBlob) } : input
+    // spines are tall and thin: keep the height, let the width follow
+    if (b.spineBlob) b = { ...b, spineBlob: await compressCover(b.spineBlob, 1000, 260) }
     if (file) await s.putFile(b.id, file)
     await s.putBook(b)
     setBooks((list) => (list.some((x) => x.id === b.id) ? list.map((x) => (x.id === b.id ? b : x)) : [...list, b]))
@@ -259,10 +273,10 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
   const tbr = useMemo(() => tbrRaw.filter((id) => (id.startsWith('w:') ? wishes.some((w) => `w:${w.id}` === id) : books.some((b) => b.id === id))), [tbrRaw, books, wishes])
 
   const value = useMemo<LibraryCtx>(() => ({
-    ready, persistent, storageProtected, books, history, settings, coverUrl, saveBook, removeBook, patchBook,
+    ready, persistent, storageProtected, books, history, settings, coverUrl, spineUrl, saveBook, removeBook, patchBook,
     toggleFavorite, setStatus, saveProgress, addHistory, updateSettings, toasts, notify,
     tbr, setTbr, addToTbr, removeFromTbr, dropBook, wishes, saveWish, removeWish, wishBought,
-  }), [ready, persistent, storageProtected, books, history, settings, coverUrl, saveBook, removeBook, patchBook, toggleFavorite, setStatus, saveProgress, addHistory, updateSettings, toasts, notify, tbr, setTbr, addToTbr, removeFromTbr, dropBook, wishes, saveWish, removeWish, wishBought])
+  }), [ready, persistent, storageProtected, books, history, settings, coverUrl, spineUrl, saveBook, removeBook, patchBook, toggleFavorite, setStatus, saveProgress, addHistory, updateSettings, toasts, notify, tbr, setTbr, addToTbr, removeFromTbr, dropBook, wishes, saveWish, removeWish, wishBought])
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }

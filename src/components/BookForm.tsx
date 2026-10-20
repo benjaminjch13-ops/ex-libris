@@ -7,7 +7,8 @@ import { uid } from '../lib/db'
 import { fmtSize } from '../lib/hooks'
 import { Modal } from './Modal'
 import { Cover } from './BookArt'
-import { Trash, Upload } from './Icons'
+import { Camera, Trash, Upload } from './Icons'
+import type { PhotoKind } from './PhotoCrop'
 import { GENRES } from '../lib/genres'
 import { Scanner } from './Scanner'
 import { Finder } from './Finder'
@@ -16,6 +17,7 @@ import { fetchCoverBlob, lookupIsbn, type CatalogHit } from '../lib/lookup'
 export type AddKind = 'digital' | 'fisico' | 'lote'
 
 const BulkImport = lazy(() => import('./BulkImport').then((m) => ({ default: m.BulkImport })))
+const PhotoCrop = lazy(() => import('./PhotoCrop').then((m) => ({ default: m.PhotoCrop })))
 
 const BASE_CATEGORIES = ['Novela', 'Relatos', 'Poesía', 'Ensayo', 'Historia', 'Divulgación', 'Misterio', 'Biografía', 'Filosofía', 'Fantasía', 'Ciencia ficción', 'Infantil', 'Técnico']
 
@@ -28,7 +30,7 @@ export function BookForm({ book, onClose, onDelete, kind: initialKind, preset, o
   preset?: Partial<Book>
   onSaved?: (b: Book) => void
 }) {
-  const { books, saveBook, notify, coverUrl, addHistory, addToTbr } = useLibrary()
+  const { books, saveBook, notify, coverUrl, spineUrl, addHistory, addToTbr } = useLibrary()
   const editing = !!book
   const [kind, setKind] = useState<AddKind>(book ? (book.format === 'fisico' ? 'fisico' : 'digital') : initialKind ?? 'digital')
   const [draft, setDraft] = useState<Book>(() => book ? { ...book } : { ...emptyBook(uid()), ...preset })
@@ -47,6 +49,11 @@ export function BookForm({ book, onClose, onDelete, kind: initialKind, preset, o
   const coverInput = useRef<HTMLInputElement>(null)
   const [newCat, setNewCat] = useState(false)
   const [bulkFiles, setBulkFiles] = useState<File[] | undefined>()
+  const [photo, setPhoto] = useState<{ kind: PhotoKind; file: File } | null>(null)
+  const camInput = useRef<HTMLInputElement>(null)
+  const camKind = useRef<PhotoKind>('portada')
+  const shoot = (k: PhotoKind) => { camKind.current = k; camInput.current?.click() }
+  const spinePreview = spineUrl(draft)
   /** several files, a .zip or a CSV dropped on the single-book form go to the bulk import */
   const toBulk = (list: File[]) => { setBulkFiles(list); setKind('lote'); setScan(null) }
 
@@ -188,7 +195,7 @@ export function BookForm({ book, onClose, onDelete, kind: initialKind, preset, o
     <Modal
       title={editing ? 'Editar libro' : scan === 'many' ? 'Escanear varios libros' : kind === 'lote' ? 'Importar libros' : 'Añadir un libro'}
       onClose={onClose}
-      footer={kind === 'lote' ? undefined : <>
+      footer={kind === 'lote' || photo ? undefined : <>
         {scan === 'many' ? <button type="button" className="btn btn-gold" onClick={() => { setScan(null); if (added) onClose() }}>{added ? `Listo · ${added} ${added === 1 ? 'libro añadido' : 'libros añadidos'}` : 'Cerrar escáner'}</button> : <>
         {editing && onDelete && <button type="button" className="btn" style={{ marginRight: 'auto', color: 'var(--danger)' }} onClick={() => onDelete(book!)}><Trash size={15} /> Eliminar</button>}
         <button type="button" className="btn" onClick={onClose}>Cancelar</button>
@@ -233,13 +240,44 @@ export function BookForm({ book, onClose, onDelete, kind: initialKind, preset, o
           <BulkImport initial={bulkFiles} onDone={onClose} />
         </Suspense>
       )}
-      <form id="book-form" onSubmit={submit} noValidate style={{ display: scan === 'many' || kind === 'lote' ? 'none' : undefined }}>
-        <div className="form-grid">
+      {photo && (
+        <Suspense fallback={<p className="hint"><span className="spin" /> Abriendo la foto…</p>}>
+          <PhotoCrop
+            file={photo.file}
+            kind={photo.kind}
+            onCancel={() => setPhoto(null)}
+            onRetake={() => shoot(photo.kind)}
+            onDone={(blob, ratio) => {
+              if (photo.kind === 'portada') { setCoverTouched(true); set({ coverBlob: blob, coverRemote: undefined, coverRatio: ratio }) }
+              else set({ spineBlob: blob, spineRatio: ratio })
+              setPhoto(null)
+              notify(photo.kind === 'portada' ? 'Portada lista: así se verá en tu estante' : 'Lomo listo: así se verá en tu estante')
+            }}
+          />
+        </Suspense>
+      )}
+      <form id="book-form" onSubmit={submit} noValidate style={{ display: scan === 'many' || kind === 'lote' || photo ? 'none' : undefined }}>
+        <div className={`form-grid${kind === 'fisico' ? ' paper' : ''}`}>
           <div className="cover-col">
-            <div className="cover-pick"><Cover book={previewBook} /></div>
+            <div className="cover-pick-row">
+              <div className="cover-pick"><Cover book={previewBook} /></div>
+              {kind === 'fisico' && (
+                <button type="button" className={`spine-pick${spinePreview ? ' has' : ''}`} onClick={() => shoot('lomo')} aria-label={spinePreview ? 'Cambiar foto del lomo' : 'Tomar foto del lomo'} title="Foto del lomo">
+                  {spinePreview ? <img src={spinePreview} alt="Lomo del libro" /> : <span>Lomo</span>}
+                </button>
+              )}
+            </div>
+            {kind === 'fisico' && (
+              <div className="photo-btns">
+                <button type="button" className="btn small-btn" onClick={() => shoot('portada')}><Camera size={15} /> Foto de portada</button>
+                <button type="button" className="btn small-btn" onClick={() => shoot('lomo')}><Camera size={15} /> {spinePreview ? 'Otra foto del lomo' : 'Foto del lomo'}</button>
+                {spinePreview && <button type="button" className="btn small-btn" onClick={() => set({ spineBlob: undefined, spineRatio: undefined })}>Quitar lomo</button>}
+              </div>
+            )}
+            <input ref={camInput} className="sr-only-input" type="file" accept="image/*" capture="environment" aria-label="Foto del libro" onChange={(e) => { const f = e.target.files?.[0]; if (f) { setPhoto({ kind: camKind.current, file: f }); setScan(null) } e.target.value = '' }} />
             <div className="cover-actions">
               <button type="button" className="btn small-btn" onClick={() => coverInput.current?.click()}><Upload size={14} /> {hasCover ? 'Cambiar portada' : 'Subir portada'}</button>
-              {hasCover && <button type="button" className="btn small-btn" onClick={() => { setCoverTouched(true); set({ coverBlob: undefined, coverRemote: undefined }) }}>Quitar</button>}
+              {hasCover && <button type="button" className="btn small-btn" onClick={() => { setCoverTouched(true); set({ coverBlob: undefined, coverRemote: undefined, coverRatio: undefined }) }}>Quitar</button>}
             </div>
             <input ref={coverInput} id="bf-cover" className="sr-only-input" type="file" accept="image/*" onChange={(e) => { const f = e.target.files?.[0]; if (f) takeCover(f); e.target.value = '' }} />
             {!hasCover && <p className="field" style={{ marginTop: 10 }}><span className="hint">Sin imagen, la portada se compone con el título y un color de tela.</span></p>}

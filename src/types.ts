@@ -72,6 +72,11 @@ export interface Book {
   favorite: boolean
   progress?: Progress
   coverBlob?: Blob
+  /** photo of the real spine (paper books): painted on the shelf */
+  spineBlob?: Blob
+  /** width ÷ height of the real spine and cover, from the photos: the 3D book takes their shape */
+  spineRatio?: number
+  coverRatio?: number
   palette: Palette
   /** 0..1, varies the height of the book on the shelf */
   heightRatio: number
