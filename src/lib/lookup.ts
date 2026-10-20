@@ -2,9 +2,9 @@ import { GENRES } from './genres'
 
 /**
  * Book metadata from public catalogues, called straight from the browser (no server):
- * Google Books (good Spanish coverage, descriptions, categories) and Open Library
- * (ISBN data and covers that can be stored offline). Apple Books goes through the
- * iTunes lookup API, which only answers cross-origin as JSONP.
+ * Google Books (good Spanish coverage, descriptions, categories), Open Library
+ * (ISBN data, every edition of a work, covers that can be stored offline) and Apple Books
+ * (sharp covers and blurbs; the iTunes API only answers cross-origin as JSONP).
  */
 
 export interface CatalogHit {
@@ -177,15 +177,97 @@ async function openLibrarySearch(q: string, max = 8): Promise<CatalogHit[]> {
 
 // ---------- public API ----------
 
-/** Everything the catalogues know about one ISBN, merged. Google for text, Open Library for the cover. */
+/** The same book under its other ISBN form (ISBN-10 ↔ ISBN-13); many Spanish editions are filed under only one. */
+export function isbnTwin(isbn: string): string | undefined {
+  if (isbn.length === 10) {
+    const core = `978${isbn.slice(0, 9)}`
+    const sum = [...core].reduce((n, c, i) => n + Number(c) * (i % 2 ? 3 : 1), 0)
+    return core + ((10 - (sum % 10)) % 10)
+  }
+  if (isbn.startsWith('978')) {
+    const core = isbn.slice(3, 12)
+    const sum = [...core].reduce((n, c, i) => n + Number(c) * (10 - i), 0)
+    const chk = (11 - (sum % 11)) % 11
+    return core + (chk === 10 ? 'X' : String(chk))
+  }
+  return undefined
+}
+
+/** Open Library's search knows every edition of a work, so it finds ISBNs its book API misses. */
+async function openLibraryByIsbnSearch(isbns: string[]): Promise<CatalogHit | undefined> {
+  const q = isbns.map((i) => `isbn:${i}`).join(' OR ')
+  const hit = (await openLibrarySearch(q, 1))[0]
+  return hit ? { ...hit, isbn: isbns[0] } : undefined
+}
+
+/** Open Library serves covers straight by ISBN; `default=false` answers 404 instead of a blank image. */
+async function openLibraryIsbnCover(isbns: string[]): Promise<string | undefined> {
+  for (const i of isbns) {
+    const url = `https://covers.openlibrary.org/b/isbn/${i}-L.jpg?default=false`
+    if (await fetchCoverBlob(url)) return url
+  }
+  return undefined
+}
+
+const itunesCountry = () => {
+  const region = (navigator.language || '').split('-')[1]?.toLowerCase()
+  return region && /^[a-z]{2}$/.test(region) ? region : 'mx'
+}
+
+function fromItunes(r: ItunesResult): CatalogHit | undefined {
+  if (!r.trackName) return undefined
+  return {
+    title: r.trackName,
+    author: r.artistName ?? '',
+    description: strip(r.description),
+    cover: r.artworkUrl100?.replace(/100x100bb/, '600x600bb'),
+    year: r.releaseDate ? Number(r.releaseDate.slice(0, 4)) || undefined : undefined,
+    genre: genreFromSubjects(r.genres),
+    source: 'apple',
+  }
+}
+
+/** Apple Books' catalogue (big in Spanish): sharp covers and blurbs for books the others know only by name. */
+async function appleSearch(q: string, max = 5): Promise<CatalogHit[]> {
+  const d = await jsonp<{ results?: ItunesResult[] }>(`https://itunes.apple.com/search?term=${encodeURIComponent(q)}&media=ebook&entity=ebook&limit=${max}&country=${itunesCountry()}`)
+  return (d.results ?? []).map(fromItunes).filter((x): x is CatalogHit => !!x)
+}
+
+const sameBook = (a: CatalogHit, title: string, author: string) => {
+  const t1 = norm(a.title).slice(0, 16), t2 = norm(title).slice(0, 16)
+  const last = norm(author.split(',')[0] ?? '').split(' ').pop() ?? ''
+  return (t1.startsWith(t2) || t2.startsWith(t1)) && (!last || norm(a.author).includes(last))
+}
+
+const settled = <T,>(r: PromiseSettledResult<T>) => (r.status === 'fulfilled' ? r.value : undefined)
+
+/**
+ * Everything the catalogues know about one ISBN, merged. Google for text, Open Library for the cover,
+ * both ISBN forms, Open Library's edition search as a second chance, and Apple Books to fill a missing
+ * cover or blurb.
+ */
 export async function lookupIsbn(raw: string): Promise<CatalogHit | undefined> {
   const isbn = cleanIsbn(raw)
   if (!isbn) return undefined
-  const [g, o] = await Promise.allSettled([googleSearch(`isbn:${isbn}`, 1).then((l) => l[0]), openLibraryIsbn(isbn)])
-  const gh = g.status === 'fulfilled' ? g.value : undefined
-  const oh = o.status === 'fulfilled' ? o.value : undefined
+  const twin = isbnTwin(isbn)
+  const isbns = twin ? [isbn, twin] : [isbn]
+  const google = async () => {
+    for (const i of isbns) { const h = (await googleSearch(`isbn:${i}`, 1))[0]; if (h) return h }
+    return undefined
+  }
+  const openlib = async () => {
+    for (const i of isbns) { const h = await openLibraryIsbn(i); if (h) return h }
+    return undefined
+  }
+  const first = await Promise.allSettled([google(), openlib()])
+  let gh = settled(first[0]), oh = settled(first[1])
+  if (!gh && !oh) {
+    // second chance: other editions in Open Library, and Google's plain text index
+    const second = await Promise.allSettled([googleSearch(isbn, 1).then((l) => l.find((h) => !h.isbn || isbns.includes(h.isbn))), openLibraryByIsbnSearch(isbns)])
+    gh = settled(second[0]); oh = settled(second[1])
+  }
   if (!gh && !oh) return undefined
-  return {
+  const hit: CatalogHit = {
     ...(oh ?? {}),
     ...(gh ?? {}),
     title: gh?.title || oh!.title,
@@ -193,10 +275,21 @@ export async function lookupIsbn(raw: string): Promise<CatalogHit | undefined> {
     pages: gh?.pages ?? oh?.pages,
     year: gh?.year ?? oh?.year,
     cover: oh?.cover ?? gh?.cover,
+    description: gh?.description ?? oh?.description,
     genre: gh?.genre ?? oh?.genre,
     isbn,
     source: gh ? 'google' : 'openlibrary',
   }
+  if (!hit.cover) hit.cover = await openLibraryIsbnCover(isbns).catch(() => undefined)
+  if (!hit.cover || !hit.description) {
+    const a = (await appleSearch(`${hit.title} ${hit.author.split(',')[0] ?? ''}`.trim(), 4).catch(() => [])).find((x) => sameBook(x, hit.title, hit.author))
+    if (a) {
+      hit.cover ??= a.cover
+      hit.description ??= a.description
+      hit.genre ??= a.genre
+    }
+  }
+  return hit
 }
 
 /** Title / author / ISBN search across both catalogues, de-duplicated. */
@@ -210,6 +303,8 @@ export async function searchCatalog(q: string): Promise<CatalogHit[]> {
   }
   const [g, o] = await Promise.allSettled([googleSearch(query), openLibrarySearch(query, 6)])
   const all = [...(g.status === 'fulfilled' ? g.value : []), ...(o.status === 'fulfilled' ? o.value : [])]
+  // few results (common with Spanish titles): Apple Books often has them
+  if (all.length < 4) all.push(...(await appleSearch(query, 6).catch(() => [])))
   if (!all.length && g.status === 'rejected' && o.status === 'rejected') throw new Error('offline')
   const key = (h: CatalogHit) => `${norm(h.title).slice(0, 40)}|${norm(h.author.split(',')[0] ?? '')}`
   const seen = new Map<string, CatalogHit>()
@@ -217,7 +312,7 @@ export async function searchCatalog(q: string): Promise<CatalogHit[]> {
     const k = key(h)
     const prev = seen.get(k)
     if (!prev) seen.set(k, h)
-    else seen.set(k, { ...h, ...prev, cover: prev.cover ?? h.cover, pages: prev.pages ?? h.pages, isbn: prev.isbn ?? h.isbn })
+    else seen.set(k, { ...h, ...prev, cover: prev.cover ?? h.cover, pages: prev.pages ?? h.pages, isbn: prev.isbn ?? h.isbn, description: prev.description ?? h.description })
   }
   return [...seen.values()].slice(0, 10)
 }
@@ -326,18 +421,8 @@ export async function lookupLink(link: StoreLink, sharedTitle?: string): Promise
     }
     if (link.kind === 'apple' && link.id) {
       const d = await jsonp<{ results?: ItunesResult[] }>(`https://itunes.apple.com/lookup?id=${link.id}${link.country ? `&country=${link.country}` : ''}`).catch(() => undefined)
-      const r = d?.results?.[0]
-      if (r?.trackName) {
-        return {
-          title: r.trackName,
-          author: r.artistName ?? '',
-          description: strip(r.description),
-          cover: r.artworkUrl100?.replace(/100x100bb/, '600x600bb'),
-          year: r.releaseDate ? Number(r.releaseDate.slice(0, 4)) : undefined,
-          genre: genreFromSubjects(r.genres),
-          source: 'apple',
-        }
-      }
+      const h = d?.results?.[0] && fromItunes(d.results[0])
+      if (h) return h
     }
     if (link.isbn) {
       const h = await lookupIsbn(link.isbn)
