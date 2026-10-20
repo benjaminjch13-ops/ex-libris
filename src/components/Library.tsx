@@ -45,14 +45,23 @@ export function Library({ visible: all, filters, setFilters, selectedId, onOpen,
   const finished = books.filter((b) => b.status === 'terminado').length
   const filtering = filters.q || filters.status !== 'todos' || filters.category || filters.author || filters.fav
 
-  const shelves = useMemo(() => {
+  // paper books get their own bookcase; books read in another app (Kindle…) stay with the digital ones
+  const isPaper = (b: Book) => b.format === 'fisico' && !b.app
+  const group = (list: Book[]) => {
     const m = new Map<string, Book[]>()
-    for (const b of visible) {
+    for (const b of list) {
       const k = b.category || 'Sin categoría'
       m.set(k, [...(m.get(k) ?? []), b])
     }
     return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0], 'es'))
-  }, [visible])
+  }
+  const digitalShelves = useMemo(() => group(visible.filter((b) => !isPaper(b))), [visible])
+  const paperShelves = useMemo(() => group(visible.filter(isPaper)), [visible])
+  const paperCount = books.filter(isPaper).length
+  const digitalCount = books.length - paperCount
+  const both = paperCount > 0 && digitalCount > 0
+  const nDigital = digitalShelves.reduce((n, [, l]) => n + l.length, 0)
+  const nPaper = paperShelves.reduce((n, [, l]) => n + l.length, 0)
 
   const name = settings.readerName.trim()
   const lead = reading[0]
@@ -133,29 +142,52 @@ export function Library({ visible: all, filters, setFilters, selectedId, onOpen,
 
       <section aria-labelledby="shelves-h">
         <div className="section-head">
-          <h2 id="shelves-h">{filtering ? <>Resultados <i>({visible.length})</i></> : <>La <i>estantería</i></>}</h2>
+          <h2 id="shelves-h">
+            {filtering ? <>Resultados <i>({visible.length})</i></> : both ? <>Libros <i>digitales</i></> : paperCount && !digitalCount ? <>Libros <i>físicos</i></> : <>La <i>estantería</i></>}
+          </h2>
           <button className="chip" onClick={onCollection}>Ver colección completa <ChevronRight size={14} /></button>
         </div>
         {books.length > 0 && <FilterBar filters={filters} setFilters={setFilters} />}
 
-        <div className="bookcase" style={{ marginTop: 26 }}>
-          {books.length === 0 ? (
+        {books.length === 0 ? (
+          <div className="bookcase" style={{ marginTop: 26 }}>
             <div className="empty-state">
               <h3>Los estantes esperan su primer libro</h3>
               <p>Sube un EPUB o un PDF, o escanea el código de barras de un libro de papel. Leeremos su título, autor y portada para colocarlo en su sitio.</p>
               <p className="empty-tip">Tus libros se guardan solo en este dispositivo. ¿No tienes un EPUB a mano? Hay clásicos gratuitos y legales en <a href="https://www.gutenberg.org/browse/languages/es" target="_blank" rel="noopener noreferrer">Project Gutenberg</a>.</p>
               <button className="btn btn-gold" onClick={onAdd}><Plus size={16} /> Añadir libro</button>
             </div>
-          ) : visible.length === 0 ? (
+          </div>
+        ) : visible.length === 0 ? (
+          <div className="bookcase" style={{ marginTop: 26 }}>
             <div className="empty-state">
               <h3>Ningún libro coincide</h3>
               <p>Prueba con otra palabra o quita algún filtro.</p>
               <button className="btn" onClick={() => setFilters({ q: '', status: 'todos', category: '', author: '', fav: false })}>Quitar filtros</button>
             </div>
-          ) : (
-            <Bookcase groups={shelves} small={small} selectedId={selectedId} onOpen={onOpen} />
-          )}
-        </div>
+          </div>
+        ) : (
+          <>
+            {nDigital > 0 && (
+              <div className="bookcase" style={{ marginTop: 26 }} aria-label="Libros digitales">
+                <Bookcase groups={digitalShelves} small={small} selectedId={selectedId} onOpen={onOpen} />
+              </div>
+            )}
+            {nPaper > 0 && (
+              <>
+                {nDigital > 0 && (
+                  <div className="section-head paper-head">
+                    <h2>Libros <i>físicos</i></h2>
+                    <span className="eyebrow">{paperCount} {paperCount === 1 ? 'libro de papel' : 'libros de papel'}</span>
+                  </div>
+                )}
+                <div className="bookcase oak" style={{ marginTop: nDigital > 0 ? 18 : 26 }} aria-label="Libros físicos">
+                  <Bookcase groups={paperShelves} small={small} selectedId={selectedId} onOpen={onOpen} />
+                </div>
+              </>
+            )}
+          </>
+        )}
       </section>
     </>
   )
