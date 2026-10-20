@@ -10,12 +10,16 @@ export const isManual = (b: Book) => b.format === 'fisico'
 export const editionLabel = (b: Book) => (b.app ? `En ${b.app}` : 'Papel')
 
 /** Paper books (and books read in another app): progress is entered by hand. */
-export function PageDialog({ book, onClose, onFinished }: { book: Book; onClose: () => void; onFinished: (id: string) => void }) {
+export function PageDialog({ book, seconds, onClose, onFinished, onLogged }: { book: Book; seconds?: number; onClose: () => void; onFinished: (id: string) => void; onLogged?: () => void }) {
   const { patchBook, addHistory, setStatus, notify } = useLibrary()
   const prev = book.progress?.page ?? 0
   const [total, setTotal] = useState(book.pages ? String(book.pages) : '')
   const [page, setPage] = useState(prev ? String(prev) : '')
-  const [minutes, setMinutes] = useState<number | null>(null)
+  const timedMin = seconds ? Math.max(1, Math.round(seconds / 60)) : 0
+  const [minutes, setMinutes] = useState<number | null>(timedMin || null)
+  // a timed session keeps its exact seconds; a chip picked by hand is whole minutes
+  const secs = () => (minutes == null ? undefined : minutes === timedMin && seconds ? seconds : minutes * 60)
+  const step = (n: number) => setPage(String(Math.max(0, Math.min((Number(page) || prev) + n, totalN || Infinity))))
   const totalN = Number(total) || 0
   const pageN = Math.min(Number(page) || 0, totalN || Infinity)
   const pct = totalN ? Math.round((pageN / totalN) * 100) : 0
@@ -23,9 +27,10 @@ export function PageDialog({ book, onClose, onFinished }: { book: Book; onClose:
   const finish = async () => {
     const t = totalN || book.pages || pageN || 1
     await patchBook(book.id, { pages: t, progress: { chapter: 0, ratio: 1, page: t, total: t, percent: 1, updatedAt: Date.now() }, lastOpenedAt: Date.now() })
-    if (t > prev) await addHistory({ bookId: book.id, title: book.title, author: book.author, type: 'sesion', at: Date.now(), fromPage: prev || 1, toPage: t, total: t, minutes: minutes ?? undefined, seconds: minutes ? minutes * 60 : undefined })
+    if (t > prev) await addHistory({ bookId: book.id, title: book.title, author: book.author, type: 'sesion', at: Date.now(), fromPage: prev || 1, toPage: t, total: t, minutes: minutes ?? undefined, seconds: secs() })
     setStatus(book.id, 'terminado')
     await addHistory({ bookId: book.id, title: book.title, author: book.author, type: 'terminado', at: Date.now() })
+    onLogged?.()
     onClose()
     onFinished(book.id)
   }
@@ -41,8 +46,9 @@ export function PageDialog({ book, onClose, onFinished }: { book: Book; onClose:
       nudgeAfter: undefined,
     })
     if (book.status !== 'leyendo') setStatus(book.id, 'leyendo')
-    await addHistory({ bookId: book.id, title: book.title, author: book.author, type: 'sesion', at: Date.now(), fromPage: prev || 1, toPage: pageN, total: totalN || undefined, minutes: minutes ?? undefined, seconds: minutes ? minutes * 60 : undefined })
+    await addHistory({ bookId: book.id, title: book.title, author: book.author, type: 'sesion', at: Date.now(), fromPage: prev || 1, toPage: pageN, total: totalN || undefined, minutes: minutes ?? undefined, seconds: secs() })
     notify(totalN ? `Página ${pageN} · ${pct}%` : `Página ${pageN} anotada`)
+    onLogged?.()
     onClose()
   }
 
@@ -62,6 +68,9 @@ export function PageDialog({ book, onClose, onFinished }: { book: Book; onClose:
           <div className="field">
             <label htmlFor="pg-page">Página actual</label>
             <input id="pg-page" className="big-num" inputMode="numeric" value={page} onChange={(e) => setPage(e.target.value.replace(/\D/g, ''))} onKeyDown={(e) => e.key === 'Enter' && save()} />
+            <div className="pg-steps" aria-label="Sumar páginas">
+              {[5, 10, 20].map((n) => <button key={n} type="button" className="chip" onClick={() => step(n)} aria-label={`Sumar ${n} páginas`}>+{n}</button>)}
+            </div>
           </div>
           <div className="field">
             <label htmlFor="pg-total">De</label>
@@ -70,9 +79,10 @@ export function PageDialog({ book, onClose, onFinished }: { book: Book; onClose:
         </div>
         {totalN > 0 && <div className="meter big" aria-hidden><i style={{ width: `${pct}%` }} /></div>}
         <div className="field">
-          <span className="lbl">¿Cuánto leíste hoy? <em className="opt">opcional</em></span>
+          <span className="lbl">{timedMin ? 'Tiempo cronometrado' : <>¿Cuánto leíste hoy? <em className="opt">opcional</em></>}</span>
           <div className="filters" role="radiogroup" aria-label="Minutos de lectura">
-            {[15, 30, 45, 60, 90].map((m) => (
+            {timedMin > 0 && <button type="button" className="chip timed" role="radio" aria-checked={minutes === timedMin} onClick={() => setMinutes(minutes === timedMin ? null : timedMin)}>⏱ {timedMin < 60 ? `${timedMin} min` : `${Math.floor(timedMin / 60)} h ${timedMin % 60 ? `${timedMin % 60} min` : ''}`.trim()}</button>}
+            {[15, 30, 45, 60, 90].filter((m) => m !== timedMin).map((m) => (
               <button key={m} type="button" className="chip" role="radio" aria-checked={minutes === m} onClick={() => setMinutes(minutes === m ? null : m)}>{m < 60 ? `${m} min` : m === 60 ? '1 h' : '1 h 30'}</button>
             ))}
           </div>

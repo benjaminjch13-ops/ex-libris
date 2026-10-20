@@ -4,6 +4,7 @@ import type { Book } from './types'
 import { LibraryProvider, useLibrary } from './state/library'
 import { Library, type OpenOrigin } from './components/Library'
 import { Stage } from './components/Stage'
+import { TimerPill, elapsed, useReadingTimer } from './components/Timer'
 import { ConfirmDialog } from './components/Modal'
 import { applyFilters, EMPTY_FILTERS, type Filters } from './lib/filters'
 import { Check, Clock, Close, Plus, Search, Settings as SettingsIcon, Books, BarChart, Queue, Bag, More, Shelf, Sparkle } from './components/Icons'
@@ -55,7 +56,12 @@ function Shell() {
   const [shared, setShared] = useState<SharedIn | null>(readShare)
   const [view, setView] = useState<View>(() => (shared ? 'wishlist' : 'library'))
   const [drop, setDrop] = useState<Book | null>(null)
-  const [pageFor, setPageFor] = useState<Book | null>(null)
+  const [pageFor, setPageFor] = useState<{ book: Book; seconds?: number } | null>(null)
+  const { timer, start: startTimer, toggle: toggleTimer, stop: stopTimer } = useReadingTimer()
+  const timerBook = timer ? books.find((b) => b.id === timer.bookId) : undefined
+  const [dropTimer, setDropTimer] = useState(false)
+  // a running session for this book travels with the page note, and stops only once the note is saved
+  const logPage = (b: Book) => setPageFor({ book: b, seconds: timer?.bookId === b.id ? Math.round(elapsed(timer) / 1000) : undefined })
   const [nextUp, setNextUp] = useState<string | null>(null)
   const [more, setMore] = useState(false)
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS)
@@ -221,7 +227,7 @@ function Shell() {
                   onPreview={openFromElement}
                   onReview={(b) => setReview({ id: b.id })}
                   onDrop={setDrop}
-                  onPage={setPageFor}
+                  onPage={logPage}
                 />
               )}
               {view === 'recs' && <Recs onBack={() => setView('library')} onWishlist={() => setView('wishlist')} />}
@@ -259,7 +265,9 @@ function Shell() {
           }}
           onEdit={() => setForm({ book: stageBook })}
           onReview={() => setReview({ id: stageBook.id })}
-          onPage={() => setPageFor(stageBook)}
+          onPage={() => logPage(stageBook)}
+          timing={timer?.bookId === stageBook.id}
+          onTimer={isManual(stageBook) && timer?.bookId !== stageBook.id ? () => { startTimer(stageBook.id); notify('Cronómetro en marcha. Cuando termines, anota tu página.') } : undefined}
           onDrop={() => setDrop(stageBook)}
         />
       )}
@@ -297,7 +305,7 @@ function Shell() {
         {drop && <DropDialog key={drop.id} book={books.find((b) => b.id === drop.id) ?? drop} onClose={() => setDrop(null)} onDropped={(id) => { if (stage?.id === id) setStage(null); setNextUp(id) }} />}
       </AnimatePresence></Suspense>
       <Suspense fallback={null}><AnimatePresence>
-        {pageFor && <PageDialog key={pageFor.id} book={books.find((b) => b.id === pageFor.id) ?? pageFor} onClose={() => setPageFor(null)} onFinished={(id) => setReview({ id, justFinished: true })} />}
+        {pageFor && <PageDialog key={pageFor.book.id} book={books.find((b) => b.id === pageFor.book.id) ?? pageFor.book} seconds={pageFor.seconds} onLogged={pageFor.seconds ? stopTimer : undefined} onClose={() => setPageFor(null)} onFinished={(id) => setReview({ id, justFinished: true })} />}
       </AnimatePresence></Suspense>
       <Suspense fallback={null}><AnimatePresence>
         {nextUp && <NextUpDialog afterId={nextUp} onClose={() => setNextUp(null)} onStart={(b) => { setStage(null); startBook(b) }} onGoTbr={() => { setStage(null); setView('tbr') }} />}
@@ -323,6 +331,30 @@ function Shell() {
               {installEvt && <button role="menuitem" onClick={() => { setMore(false); install() }}><Plus /> Instalar app</button>}
             </motion.div>
           </>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {timer && timerBook && !reading && (
+          <TimerPill
+            timer={timer}
+            book={timerBook}
+            onToggle={toggleTimer}
+            onFinish={() => logPage(timerBook)}
+            onDiscard={() => (elapsed(timer) > 60000 ? setDropTimer(true) : (stopTimer(), notify('Cronómetro descartado')))}
+            onOpen={() => { if (stage?.id !== timerBook.id) open(timerBook, { rect: new DOMRect(window.innerWidth / 2 - 60, window.innerHeight / 2 - 90, 120, 180), pose: 'flat' }) }}
+          />
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {dropTimer && (
+          <ConfirmDialog
+            title="¿Descartar esta sesión?"
+            message="El tiempo cronometrado no se guardará en tu racha ni en tus estadísticas."
+            confirmLabel="Descartar"
+            onConfirm={() => { stopTimer(); setDropTimer(false); notify('Cronómetro descartado') }}
+            onCancel={() => setDropTimer(false)}
+          />
         )}
       </AnimatePresence>
 

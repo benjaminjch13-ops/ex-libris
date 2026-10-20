@@ -6,7 +6,7 @@ import { Book3D, bookDims } from './BookArt'
 import type { OpenOrigin } from './Library'
 import { useLibrary } from '../state/library'
 import { useLiteMotion, useViewport, relTime, fmtSize } from '../lib/hooks'
-import { BookOpen, ChevronLeft, Close, Edit, Heart } from './Icons'
+import { BookOpen, ChevronLeft, Close, Edit, Heart, Timer } from './Icons'
 import { Stars } from './ReviewDialog'
 import { ExLibrisSeal } from './ExLibrisSeal'
 import { editionLabel, isManual } from './Flows'
@@ -24,6 +24,10 @@ interface Props {
   onReview: () => void
   onPage: () => void
   onDrop: () => void
+  /** paper books: start a timed reading session (absent while one runs for this book) */
+  onTimer?: () => void
+  /** a timed session for this book is running */
+  timing?: boolean
 }
 
 export function TitlePage({ book }: { book: Book }) {
@@ -55,7 +59,7 @@ function useGeometry() {
   }, [w, h])
 }
 
-export function Stage({ book, origin, initial, onRead, onClosed, onEdit, onReview, onPage, onDrop }: Props) {
+export function Stage({ book, origin, initial, onRead, onClosed, onEdit, onReview, onPage, onDrop, onTimer, timing }: Props) {
   const { toggleFavorite, setStatus, tbr, addToTbr, removeFromTbr, notify, settings, patchBook } = useLibrary()
   const custom = settings.customShelves ?? []
   const [shelfMenu, setShelfMenu] = useState(false)
@@ -262,7 +266,11 @@ export function Stage({ book, origin, initial, onRead, onClosed, onEdit, onRevie
           <div className="preview-actions">
             {manual ? (
               book.status === 'leyendo' ? (
-                <button ref={primary} className="btn btn-gold" onClick={onPage}><BookOpen size={16} /> Anotar mi página</button>
+                <>
+                  <button ref={primary} className="btn btn-gold" onClick={onPage}><BookOpen size={16} /> Anotar mi página</button>
+                  {onTimer && <button className="btn" onClick={onTimer}><Timer size={16} /> Cronometrar lectura</button>}
+                  {timing && <p className="stage-timing" style={{ flexBasis: '100%' }}><i aria-hidden />Cronometrando esta lectura · al anotar tu página se guarda el tiempo.</p>}
+                </>
               ) : book.status === 'terminado' ? null : (
                 <button ref={primary} className="btn btn-gold" onClick={() => { setStatus(book.id, 'leyendo'); notify(book.status === 'abandonado' ? '¡Segunda oportunidad! Anota tu página cuando quieras.' : '¡A leer! Anota tu página cuando quieras.') }}><BookOpen size={16} /> {book.status === 'abandonado' ? 'Retomarlo' : 'Empezar a leer'}</button>
               )
