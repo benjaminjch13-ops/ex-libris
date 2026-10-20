@@ -16,6 +16,7 @@ export interface CatalogHit {
   description?: string
   cover?: string
   genre?: string
+  publisher?: string
   source: 'google' | 'openlibrary' | 'apple'
 }
 
@@ -99,7 +100,7 @@ export function genreFromSubjects(subjects: string[] = []): string | undefined {
 interface GVolume {
   id: string
   volumeInfo: {
-    title?: string; subtitle?: string; authors?: string[]; pageCount?: number; publishedDate?: string
+    title?: string; subtitle?: string; authors?: string[]; pageCount?: number; publishedDate?: string; publisher?: string
     description?: string; categories?: string[]; imageLinks?: { thumbnail?: string; smallThumbnail?: string }
     industryIdentifiers?: { type: string; identifier: string }[]
   }
@@ -122,12 +123,14 @@ function fromGoogle(v: GVolume): CatalogHit | undefined {
     description: strip(i.description),
     cover: thumb?.replace(/^http:/, 'https:').replace('&edge=curl', ''),
     genre: genreFromSubjects(i.categories),
+    publisher: i.publisher?.replace(/\s+/g, ' ').trim() || undefined,
     source: 'google',
   }
 }
 
-async function googleSearch(q: string, max = 8): Promise<CatalogHit[]> {
-  const d = await getJson<{ items?: GVolume[] }>(`https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(q)}&maxResults=${max}&printType=books`)
+/** `country` asks Google for that store's catalogue: some Spanish-language editions only show up in MX or ES. */
+async function googleSearch(q: string, max = 8, country?: string): Promise<CatalogHit[]> {
+  const d = await getJson<{ items?: GVolume[] }>(`https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(q)}&maxResults=${max}&printType=books${country ? `&country=${country}` : ''}`)
   return (d.items ?? []).map(fromGoogle).filter((x): x is CatalogHit => !!x)
 }
 
@@ -263,7 +266,14 @@ export async function lookupIsbn(raw: string): Promise<CatalogHit | undefined> {
   let gh = settled(first[0]), oh = settled(first[1])
   if (!gh && !oh) {
     // second chance: other editions in Open Library, and Google's plain text index
-    const second = await Promise.allSettled([googleSearch(isbn, 1).then((l) => l.find((h) => !h.isbn || isbns.includes(h.isbn))), openLibraryByIsbnSearch(isbns)])
+    const regional = async () => {
+      for (const c of ['MX', 'ES']) { const h = (await googleSearch(`isbn:${isbn}`, 1, c))[0]; if (h) return h }
+      return undefined
+    }
+    const second = await Promise.allSettled([
+      googleSearch(isbn, 1).then((l) => l.find((h) => !h.isbn || isbns.includes(h.isbn))).then((h) => h ?? regional()),
+      openLibraryByIsbnSearch(isbns),
+    ])
     gh = settled(second[0]); oh = settled(second[1])
   }
   if (!gh && !oh) return undefined

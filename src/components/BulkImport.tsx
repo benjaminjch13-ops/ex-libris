@@ -244,7 +244,7 @@ export function BulkImport({ initial, onDone }: { initial?: File[]; onDone: () =
                   <span className="hint">Si tu lista dice Kindle, Apple Books o ebook, lo respeto libro por libro.</span>
                 </div>
               )}
-              {hasRows && <label className="check"><input type="checkbox" checked={online} onChange={(e) => setOnline(e.target.checked)} /> Buscar portadas y datos en Google Books y Open Library</label>}
+              {hasRows && <label className="check"><input type="checkbox" checked={online} onChange={(e) => setOnline(e.target.checked)} /> Buscar portadas y datos en Google Books, Open Library y Apple Books</label>}
               <label className="check"><input type="checkbox" checked={toTbr} onChange={(e) => setToTbr(e.target.checked)} /> Añadir {hasRows ? 'los pendientes' : 'los libros'} a mi lista «Por leer»</label>
             </div>
             <div className="bulk-actions">

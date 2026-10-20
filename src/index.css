@@ -1529,3 +1529,10 @@ button.grow:hover { background: rgb(var(--fg-rgb) / .04); }
   .form-grid.paper .cover-col .photo-btns { display: grid; gap: 8px; }
   .form-grid.paper .cover-col .photo-btns .btn { justify-content: flex-start; }
 }
+
+/* an ISBN the catalogues don't know: guide to the title search */
+.miss-note { display: grid; gap: 4px; padding: 11px 14px; border-radius: 10px; border: 1px solid rgb(var(--accent-rgb) / .35); background: var(--gold-dim); font-size: 13.5px; line-height: 1.45; color: var(--ivory-dim); animation: pref-in .3s var(--ease-out); }
+.miss-note b { color: var(--ivory); font-weight: 500; }
+.batch li.b-miss { grid-template-columns: 22px minmax(0, 1fr); row-gap: 2px; }
+.batch li.b-miss em { grid-column: 2; }
+.batch li.b-miss .b-find { grid-column: 2; justify-self: start; padding: 4px 11px; font-size: 12.5px; margin-top: 2px; }

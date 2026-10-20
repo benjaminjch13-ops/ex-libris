@@ -1,10 +1,12 @@
 import { useState } from 'react'
-import { searchCatalog, type CatalogHit } from '../lib/lookup'
+import { cleanIsbn, searchCatalog, type CatalogHit } from '../lib/lookup'
 import { Search } from './Icons'
 
 /** Title / author / ISBN search against the public catalogues, with a pickable result list. */
-export function Finder({ onPick, placeholder = 'Título, autor o ISBN', autoQuery }: {
+export function Finder({ onPick, placeholder = 'Título, autor o ISBN', autoQuery, onIsbnMiss }: {
   onPick: (h: CatalogHit) => void
+  /** an ISBN typed here that no catalogue knows: the parent explains and asks for the title */
+  onIsbnMiss?: (isbn: string) => void
   placeholder?: string
   autoQuery?: string
 }) {
@@ -19,6 +21,8 @@ export function Finder({ onPick, placeholder = 'Título, autor o ISBN', autoQuer
     try {
       const r = await searchCatalog(q)
       setHits(r)
+      const isbn = cleanIsbn(q)
+      if (!r.length && isbn && onIsbnMiss) { setQ(''); onIsbnMiss(isbn); return }
       if (!r.length) setErr('No encontré ese libro en los catálogos. Puedes escribir los datos a mano.')
     } catch {
       setHits([]); setErr('Sin conexión con los catálogos. Escribe los datos a mano o inténtalo más tarde.')

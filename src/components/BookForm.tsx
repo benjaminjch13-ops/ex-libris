@@ -13,6 +13,7 @@ import { GENRES } from '../lib/genres'
 import { Scanner } from './Scanner'
 import { Finder } from './Finder'
 import { fetchCoverBlob, lookupIsbn, type CatalogHit } from '../lib/lookup'
+import { isbnOrigin, originLabel, originSentence } from '../lib/isbn-origin'
 
 export type AddKind = 'digital' | 'fisico' | 'lote'
 
@@ -50,6 +51,14 @@ export function BookForm({ book, onClose, onDelete, kind: initialKind, preset, o
   const [newCat, setNewCat] = useState(false)
   const [bulkFiles, setBulkFiles] = useState<File[] | undefined>()
   const [photo, setPhoto] = useState<{ kind: PhotoKind; file: File } | null>(null)
+  /** a scanned ISBN the catalogues don't know: the title search keeps it and the publisher */
+  const [miss, setMiss] = useState<{ isbn: string; label: string; publisher?: string } | null>(null)
+  const lookFor = (isbn: string) => {
+    const o = isbnOrigin(isbn)
+    setMiss({ isbn, label: originSentence(o), publisher: o.publisher })
+    set({ isbn, publisher: o.publisher })
+    setTimeout(() => document.getElementById('finder-q')?.focus(), 350)
+  }
   const camInput = useRef<HTMLInputElement>(null)
   const camKind = useRef<PhotoKind>('portada')
   const shoot = (k: PhotoKind) => { camKind.current = k; camInput.current?.click() }
@@ -98,7 +107,9 @@ export function BookForm({ book, onClose, onDelete, kind: initialKind, preset, o
       author: h.author || d.author,
       pages: h.pages ?? d.pages,
       year: h.year ?? d.year,
-      isbn: h.isbn ?? d.isbn,
+      // a scanned ISBN stays: the result may be another edition (often the e-book) of the same book
+      isbn: miss?.isbn ?? h.isbn ?? d.isbn,
+      publisher: miss?.publisher ?? h.publisher ?? d.publisher,
       description: d.description || h.description || '',
       genre: d.genre || h.genre,
       coverRemote: coverTouched ? d.coverRemote : h.cover,
@@ -115,8 +126,8 @@ export function BookForm({ book, onClose, onDelete, kind: initialKind, preset, o
     setLooking(true)
     const h = await lookupIsbn(isbn).catch(() => undefined)
     setLooking(false)
-    if (h) { await applyHit(h); notify(`Encontré «${h.title}»`) }
-    else { set({ isbn }); notify('No encontré ese ISBN en los catálogos; escribe los datos a mano.', 'error') }
+    if (h) { setMiss(null); await applyHit(h); notify(`Encontré «${h.title}»`) }
+    else lookFor(isbn)
   }
 
   /** "Escanear varios": every code becomes a paper book on the shelf straight away. */
@@ -132,7 +143,7 @@ export function BookForm({ book, onClose, onDelete, kind: initialKind, preset, o
     const b: Book = {
       ...emptyBook(uid()),
       format: 'fisico',
-      title: h.title, author: h.author || 'Autor desconocido', pages: h.pages, year: h.year, isbn,
+      title: h.title, author: h.author || 'Autor desconocido', pages: h.pages, year: h.year, isbn, publisher: h.publisher ?? isbnOrigin(isbn).publisher,
       description: h.description ?? '', genre: h.genre, category: 'Sin categoría',
       coverBlob, coverRemote: coverBlob ? undefined : h.cover,
       palette: await paletteForBook(h.title, coverBlob),
@@ -224,7 +235,8 @@ export function BookForm({ book, onClose, onDelete, kind: initialKind, preset, o
                         <li key={x.isbn} className={`b-${x.state}`}>
                           <span>{x.state === 'busy' ? <span className="spin" /> : x.state === 'ok' ? '✓' : x.state === 'dup' ? '=' : '?'}</span>
                           <b>{x.title ?? x.isbn}</b>
-                          <em>{x.state === 'busy' ? 'buscando…' : x.state === 'ok' ? 'en la estantería' : x.state === 'dup' ? 'ya lo tienes' : 'no encontrado; añádelo a mano'}</em>
+                          <em>{x.state === 'busy' ? 'buscando…' : x.state === 'ok' ? 'en la estantería' : x.state === 'dup' ? 'ya lo tienes' : `no está por ISBN${originLabel(isbnOrigin(x.isbn)) ? ` · ${originLabel(isbnOrigin(x.isbn))}` : ''}`}</em>
+                          {x.state === 'miss' && <button type="button" className="chip b-find" onClick={() => { setScan(null); lookFor(x.isbn); setBatch((l) => l.filter((y) => y.isbn !== x.isbn)) }}>Buscar por título</button>}
                         </li>
                       ))}
                     </ul>
@@ -291,8 +303,14 @@ export function BookForm({ book, onClose, onDelete, kind: initialKind, preset, o
                   <button type="button" className="btn btn-gold" onClick={() => setScan('one')} disabled={looking}>{looking ? <span className="spin" /> : <BarcodeIcon />} Escanear código de barras</button>
                   {!editing && <button type="button" className="btn" onClick={() => setScan('many')}>Escanear varios</button>}
                 </div>
-                <Finder onPick={applyHit} autoQuery={preset?.title} />
-                <span className="hint">Traemos título, autor, páginas y portada de Google Books y Open Library.</span>
+                {miss && (
+                  <div className="miss-note" role="status">
+                    <b>Ese ISBN no está en los catálogos{miss.label ? `: ${miss.label}` : ''}.</b>
+                    <span>Muchas ediciones en español no se registran por ISBN, pero sí aparecen por título. Escribe el título y elige el que coincida: guardo tu ISBN {miss.isbn}{miss.publisher ? ' y la editorial' : ''}.</span>
+                  </div>
+                )}
+                <Finder onPick={applyHit} autoQuery={preset?.title} onIsbnMiss={lookFor} placeholder={miss ? 'Título del libro (y autor si lo sabes)' : undefined} />
+                <span className="hint">Traemos título, autor, editorial, páginas y portada de Google Books, Open Library y Apple Books.</span>
               </div>
             ) : (
             <div className="field">
