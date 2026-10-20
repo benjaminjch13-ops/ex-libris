@@ -43,6 +43,7 @@ La beta se publica sola en `https://<usuario>.github.io/<repositorio>/` cada vez
 - **Libros de papel:** escanea el código de barras (ISBN) con la cámara o busca por título; los datos y la portada llegan de Google Books y Open Library. «Escanear varios» añade un estante entero de una pasada. El progreso se anota a mano («¿En qué página vas?»). Sirve también para libros comprados en Kindle, Apple Books, etc.
 - **Wishlist:** pega el enlace de cualquier tienda (Amazon/Kindle, Apple Books, Google Play, Buscalibre…) y se completa sola; un libro puede tener varios enlaces y precios. En Android, «Compartir → Ex Libris» desde la tienda. «Ya lo compré» lo pasa a la biblioteca.
 - **Por leer (TBR):** fila ordenable (arrastrar o flechas), ordenar por géneros alternos, cortos primero, los que más esperan. Al terminar o abandonar un libro, la app propone el siguiente.
+- **Para ti (libros que pueden gustarte):** sugerencias a partir de los géneros, autores, calificaciones y abandonos de tu biblioteca, sobre un catálogo curado de ~200 libros (los más leídos en español, los mejores del siglo XXI, premios de lectores, más vendidos y clásicos de cada género), cada uno con sinopsis, dónde encontrarlo y un toque para guardarlo en la wishlist. Sin biblioteca: selector de gustos y estantes para principiantes.
 - **Drop it:** abandonar un libro con su motivo y nota; se guarda dónde lo dejaste. Si un libro lleva 3 semanas sin abrirse, la app pregunta si seguir, pausarlo o dejarlo. Estadísticas de abandonos.
 
 ## Estructura
@@ -58,6 +59,7 @@ La beta se publica sola en `https://<usuario>.github.io/<repositorio>/` cada vez
 | `src/lib/genres.ts` | Géneros y su relleno para libros antiguos |
 | `src/lib/lookup.ts` | Catálogos (Google Books, Open Library, iTunes), ISBN y enlaces de tiendas |
 | `src/components/Scanner.tsx` | Lector de códigos de barras (BarcodeDetector o ZXing) |
+| `src/lib/recs-data.ts`, `src/lib/recommend.ts`, `src/components/Recs.tsx` | Catálogo curado, perfil de lector y vista «Para ti» |
 | `src/components/Tbr.tsx`, `Wishlist.tsx`, `Flows.tsx` | Por leer, wishlist, página manual, abandonar y «¿sigues con este?» |
 | `src/components/Library.tsx` | Bienvenida, mesa de lectura, filtros, estantería 3D |
 | `src/components/BookArt.tsx` | Libro 3D (tapa, lomo, cantos), portadas y lomos generados |

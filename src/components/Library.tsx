@@ -8,6 +8,7 @@ import { ChevronRight, Heart, Plus } from './Icons'
 import type { Filters } from '../lib/filters'
 import { staleBook, weeksSince } from './Flows'
 import { TbrNext } from './Tbr'
+import { RecsTeaser } from './Recs'
 
 export interface OpenOrigin {
   rect: DOMRect
@@ -25,9 +26,10 @@ interface Props {
   onStart: (b: Book) => void
   onTbr: () => void
   onDrop: (b: Book) => void
+  onRecs: () => void
 }
 
-export function Library({ visible: all, filters, setFilters, selectedId, onOpen, onAdd, onCollection, onStart, onTbr, onDrop }: Props) {
+export function Library({ visible: all, filters, setFilters, selectedId, onOpen, onAdd, onCollection, onStart, onTbr, onDrop, onRecs }: Props) {
   const { books: allBooks, settings, patchBook, setStatus, addToTbr, notify } = useLibrary()
   // abandoned books live in the collection, not on the shelf
   const books = useMemo(() => allBooks.filter((b) => b.status !== 'abandonado'), [allBooks])
@@ -139,6 +141,8 @@ export function Library({ visible: all, filters, setFilters, selectedId, onOpen,
       {reading.length === 0 && !filtering && books.length > 0 && (
         <section aria-label="Siguiente lectura"><TbrNext onStart={onStart} onOpen={onTbr} /></section>
       )}
+
+      {!filtering && <RecsTeaser onOpen={onRecs} />}
 
       <section aria-labelledby="shelves-h">
         <div className="section-head">

@@ -37,3 +37,4 @@ export const Queue = ({ size, ...p }: P) => <svg {...base(size)} {...p}><path d=
 export const Bag = ({ size, ...p }: P) => <svg {...base(size)} {...p}><path d="M5 8h14l-1 12H6L5 8Z" /><path d="M9 10V6.5a3 3 0 0 1 6 0V10" /></svg>
 export const More = ({ size, ...p }: P) => <svg {...base(size)} {...p}><circle cx="5.5" cy="12" r="1.3" fill="currentColor" /><circle cx="12" cy="12" r="1.3" fill="currentColor" /><circle cx="18.5" cy="12" r="1.3" fill="currentColor" /></svg>
 export const Shelf = ({ size, ...p }: P) => <svg {...base(size)} {...p}><path d="M3 20h18M5 20V6h3v14M9.5 20V4h3v16M14 20l1.5-14 3 .3L17 20" /></svg>
+export const Sparkle = ({ size, ...p }: P) => <svg {...base(size)} {...p}><path d="M12 3.5c.6 3.9 2.6 5.9 6.5 6.5-3.9.6-5.9 2.6-6.5 6.5-.6-3.9-2.6-5.9-6.5-6.5 3.9-.6 5.9-2.6 6.5-6.5Z" /><path d="M18.5 15.5c.25 1.6 1 2.35 2.5 2.5-1.5.25-2.25 1-2.5 2.5-.25-1.5-1-2.25-2.5-2.5 1.5-.15 2.25-.9 2.5-2.5Z" /></svg>

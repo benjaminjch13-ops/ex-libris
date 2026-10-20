@@ -12,13 +12,14 @@ import { ReviewDialog } from './components/ReviewDialog'
 import { Stats } from './components/Stats'
 import { ConfirmDialog, Modal } from './components/Modal'
 import { applyFilters, EMPTY_FILTERS, type Filters } from './lib/filters'
-import { Check, Clock, Close, Plus, Search, Settings as SettingsIcon, Books, BarChart, Queue, Bag, More, Shelf } from './components/Icons'
+import { Check, Clock, Close, Plus, Search, Settings as SettingsIcon, Books, BarChart, Queue, Bag, More, Shelf, Sparkle } from './components/Icons'
+import { Recs } from './components/Recs'
 import { Tbr } from './components/Tbr'
 import { Wishlist, type SharedIn } from './components/Wishlist'
 import { DropDialog, NextUpDialog, PageDialog, isManual } from './components/Flows'
 import type { AddKind } from './components/BookForm'
 
-type View = 'library' | 'collection' | 'history' | 'stats' | 'tbr' | 'wishlist'
+type View = 'library' | 'collection' | 'history' | 'stats' | 'tbr' | 'wishlist' | 'recs'
 
 /** Android share sheet → `?share=1&url=…&text=…&title=…` (manifest share_target) */
 function readShare(): SharedIn | null {
@@ -145,6 +146,7 @@ function Shell() {
             {filters.q && <button className="icon-btn" style={{ width: 24, height: 24 }} onClick={() => setFilters({ ...filters, q: '' })} aria-label="Borrar búsqueda"><Close size={14} /></button>}
           </label>
           <nav className="topnav" aria-label="Secciones">
+            <button className="icon-btn hide-sm" aria-pressed={view === 'recs'} onClick={() => go('recs')} aria-label="Libros que pueden gustarte" title="Libros que pueden gustarte"><Sparkle /></button>
             <button className="icon-btn hide-sm" aria-pressed={view === 'tbr'} onClick={() => go('tbr')} aria-label="Por leer" title="Por leer"><Queue /></button>
             <button className="icon-btn hide-sm" aria-pressed={view === 'wishlist'} onClick={() => go('wishlist')} aria-label="Wishlist" title="Wishlist"><Bag /></button>
             <button className="icon-btn hide-sm" aria-pressed={view === 'collection'} onClick={() => go('collection')} aria-label="Colección completa" title="Colección completa"><Books /></button>
@@ -176,6 +178,7 @@ function Shell() {
                   onStart={startBook}
                   onTbr={() => setView('tbr')}
                   onDrop={setDrop}
+                  onRecs={() => setView('recs')}
                 />
               )}
               {view === 'collection' && (
@@ -193,6 +196,7 @@ function Shell() {
                   onPage={setPageFor}
                 />
               )}
+              {view === 'recs' && <Recs onBack={() => setView('library')} onWishlist={() => setView('wishlist')} />}
               {view === 'tbr' && <Tbr onBack={() => setView('library')} onStart={startBook} onOpenBook={openFromElement} onWishlist={() => setView('wishlist')} />}
               {view === 'wishlist' && (
                 <Wishlist
@@ -271,16 +275,17 @@ function Shell() {
 
       {/* phone: sections live in a bottom bar, like an app */}
       <nav className="tabbar" aria-label="Secciones">
-        {([['library', 'Estantería', Shelf], ['tbr', 'Por leer', Queue], ['wishlist', 'Wishlist', Bag], ['collection', 'Colección', Books]] as const).map(([v, label, Icon]) => (
+        {([['library', 'Estantería', Shelf], ['recs', 'Para ti', Sparkle], ['tbr', 'Por leer', Queue], ['wishlist', 'Wishlist', Bag]] as const).map(([v, label, Icon]) => (
           <button key={v} aria-current={view === v && !more ? 'page' : undefined} onClick={() => { setMore(false); setView(v) }}><Icon size={20} /><span>{label}</span></button>
         ))}
-        <button aria-expanded={more} aria-current={more || view === 'stats' || view === 'history' ? 'page' : undefined} onClick={() => setMore((m) => !m)}><More size={20} /><span>Más</span></button>
+        <button aria-expanded={more} aria-current={more || view === 'stats' || view === 'history' || view === 'collection' ? 'page' : undefined} onClick={() => setMore((m) => !m)}><More size={20} /><span>Más</span></button>
       </nav>
       <AnimatePresence>
         {more && (
           <>
             <motion.div className="sheet-back" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setMore(false)} />
             <motion.div className="sheet" role="menu" initial={{ y: 30, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 30, opacity: 0 }} transition={{ duration: 0.22 }}>
+              <button role="menuitem" onClick={() => { setMore(false); setView('collection') }}><Books /> Colección completa</button>
               <button role="menuitem" onClick={() => { setMore(false); setView('stats') }}><BarChart /> Estadísticas</button>
               <button role="menuitem" onClick={() => { setMore(false); setView('history') }}><Clock /> Historial de lectura</button>
               <button role="menuitem" onClick={() => { setMore(false); setShowSettings(true) }}><SettingsIcon /> Preferencias</button>
