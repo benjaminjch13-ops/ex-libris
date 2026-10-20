@@ -3,6 +3,7 @@ import type { Book, DropReason, HistoryEntry, Progress, Settings, Status, WishIt
 import { DEFAULT_SETTINGS, loadSettings, saveSettings, store } from '../lib/db'
 import { genreFromCategory } from '../lib/genres'
 import { compressCover, protectStorage } from '../lib/backup'
+import { applyTheme } from '../lib/themes'
 
 
 interface Toast { id: number; text: string; tone?: 'ok' | 'error' }
@@ -228,6 +229,18 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     setHistory(await s.getHistory().catch(() => []))
   }, [])
   addHistoryRef.current = addHistory
+
+  // theme: apply on load and change; remember it locally too so the next start paints in the right colours
+  useEffect(() => {
+    if (!ready) return
+    applyTheme(settings.theme)
+    try { localStorage.setItem('exl-theme', settings.theme ?? 'auto') } catch { /* ignore */ }
+    if ((settings.theme ?? 'auto') !== 'auto') return
+    const m = window.matchMedia('(prefers-color-scheme: light)')
+    const on = () => applyTheme('auto')
+    m.addEventListener('change', on)
+    return () => m.removeEventListener('change', on)
+  }, [ready, settings.theme])
 
   const updateSettings = useCallback((patch: Partial<Settings>) => {
     setSettings((cur) => {

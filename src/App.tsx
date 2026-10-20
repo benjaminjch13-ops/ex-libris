@@ -10,6 +10,7 @@ import { Check, Clock, Close, Plus, Search, Settings as SettingsIcon, Books, Bar
 import type { SharedIn } from './components/Wishlist'
 import { isManual } from './components/Flows'
 import { DataPanel } from './components/DataPanel'
+import { THEMES, type ThemeId } from './lib/themes'
 import type { AddKind } from './components/BookForm'
 
 // Everything not needed for the first screen loads on demand (and is cached for offline use by the service worker).
@@ -347,6 +348,7 @@ function SettingsDialog({ onClose }: { onClose: () => void }) {
       </>}
     >
       <div className="fields">
+        <ThemePicker value={settings.theme ?? 'nocturna'} onChange={(theme) => updateSettings({ theme })} />
         <div className="field">
           <label htmlFor="s-lib">Nombre de la biblioteca</label>
           <input id="s-lib" value={libraryName} onChange={(e) => setLibraryName(e.target.value)} maxLength={40} />
@@ -366,5 +368,31 @@ function SettingsDialog({ onClose }: { onClose: () => void }) {
         )}
       </div>
     </Modal>
+  )
+}
+
+/** Book-inspired looks; the choice applies at once so the person sees it behind the dialog. */
+function ThemePicker({ value, onChange }: { value: ThemeId; onChange: (t: ThemeId) => void }) {
+  return (
+    <div className="field">
+      <span className="lbl" id="theme-lbl">Tema</span>
+      <div className="theme-grid" role="radiogroup" aria-labelledby="theme-lbl">
+        {THEMES.map((t) => (
+          <button key={t.id} type="button" role="radio" aria-checked={value === t.id} className="theme-card" onClick={() => onChange(t.id)}>
+            <span className="tc-swatch" style={{ background: t.room }} aria-hidden>
+              {t.spines.map((c, i) => <i key={i} style={{ background: c, height: 30 + ((i * 13) % 22) }} />)}
+              <span className="tc-plank" style={{ background: t.wood }} />
+              <span className="tc-dot" style={{ background: t.accent }} />
+            </span>
+            <b>{t.name}</b>
+            <span className="tc-line">{t.line}</span>
+          </button>
+        ))}
+      </div>
+      <label className="check" style={{ marginTop: 4 }}>
+        <input type="checkbox" checked={value === 'auto'} onChange={(e) => onChange(e.target.checked ? 'auto' : 'nocturna')} />
+        Automático: Pergamino de día y Biblioteca nocturna de noche, según tu teléfono
+      </label>
+    </div>
   )
 }

@@ -89,6 +89,7 @@ export const DEFAULT_SETTINGS: Settings = {
   fontScale: 1,
   night: false,
   pageMode: 'auto',
+  theme: 'nocturna',
 }
 
 export async function loadSettings(): Promise<Settings> {

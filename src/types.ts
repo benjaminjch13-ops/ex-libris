@@ -151,6 +151,8 @@ export interface Settings {
   night: boolean
   /** reader layout: automatic (by screen), always one page, or two facing pages */
   pageMode?: 'auto' | 'una' | 'dos'
+  /** look of the app; 'auto' follows the system's light/dark setting */
+  theme?: 'auto' | 'nocturna' | 'pergamino' | 'gotica' | 'bosque' | 'oceano' | 'rosa'
 }
 
 export const STATUS_LABEL: Record<Status, string> = {
