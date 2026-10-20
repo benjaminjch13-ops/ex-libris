@@ -152,7 +152,7 @@ export interface Settings {
   /** reader layout: automatic (by screen), always one page, or two facing pages */
   pageMode?: 'auto' | 'una' | 'dos'
   /** look of the app; 'auto' follows the system's light/dark setting */
-  theme?: 'auto' | 'nocturna' | 'pergamino' | 'gotica' | 'bosque' | 'oceano' | 'rosa'
+  theme?: 'auto' | 'nocturna' | 'pergamino' | 'gotica' | 'bosque' | 'oceano' | 'rosa' | 'estrellas' | 'montanas' | 'acogedor' | 'naturaleza' | 'lluvia'
 }
 
 export const STATUS_LABEL: Record<Status, string> = {

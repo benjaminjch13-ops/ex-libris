@@ -379,7 +379,7 @@ function ThemePicker({ value, onChange }: { value: ThemeId; onChange: (t: ThemeI
       <div className="theme-grid" role="radiogroup" aria-labelledby="theme-lbl">
         {THEMES.map((t) => (
           <button key={t.id} type="button" role="radio" aria-checked={value === t.id} className="theme-card" onClick={() => onChange(t.id)}>
-            <span className="tc-swatch" style={{ background: t.room }} aria-hidden>
+            <span className="tc-swatch" style={{ background: t.sky ?? t.room }} aria-hidden>
               {t.spines.map((c, i) => <i key={i} style={{ background: c, height: 30 + ((i * 13) % 22) }} />)}
               <span className="tc-plank" style={{ background: t.wood }} />
               <span className="tc-dot" style={{ background: t.accent }} />
