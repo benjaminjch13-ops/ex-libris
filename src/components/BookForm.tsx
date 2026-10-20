@@ -11,7 +11,7 @@ import { Camera, Trash, Upload } from './Icons'
 import type { PhotoKind } from './PhotoCrop'
 import { GENRES } from '../lib/genres'
 import { Scanner } from './Scanner'
-import { Finder } from './Finder'
+import { Finder, type PickExtra } from './Finder'
 import { fetchCoverBlob, lookupIsbn, type CatalogHit } from '../lib/lookup'
 import { isbnOrigin, originLabel, originSentence } from '../lib/isbn-origin'
 
@@ -20,7 +20,7 @@ export type AddKind = 'digital' | 'fisico' | 'lote'
 const BulkImport = lazy(() => import('./BulkImport').then((m) => ({ default: m.BulkImport })))
 const PhotoCrop = lazy(() => import('./PhotoCrop').then((m) => ({ default: m.PhotoCrop })))
 
-const BASE_CATEGORIES = ['Novela', 'Relatos', 'Poesía', 'Ensayo', 'Historia', 'Divulgación', 'Misterio', 'Biografía', 'Filosofía', 'Fantasía', 'Ciencia ficción', 'Infantil', 'Técnico']
+const BASE_CATEGORIES = ['Novela', 'Relatos', 'Poesía', 'Ensayo', 'Historia', 'Divulgación', 'Misterio', 'Biografía', 'Filosofía', 'Fantasía', 'Ciencia ficción', 'Infantil', 'Técnico', 'Manga', 'Cómic']
 
 export function BookForm({ book, onClose, onDelete, kind: initialKind, preset, onSaved }: {
   book?: Book
@@ -100,16 +100,18 @@ export function BookForm({ book, onClose, onDelete, kind: initialKind, preset, o
   }
 
   /** Fill the form from a catalogue result; the cover is stored locally when the host allows it. */
-  async function applyHit(h: CatalogHit) {
+  async function applyHit(h: CatalogHit, extra?: PickExtra) {
     setDraft((d) => ({
       ...d,
       title: h.title || d.title,
+      ...(h.manga ? { volume: extra?.volume ?? d.volume, category: d.category || 'Manga' } : {}),
       author: h.author || d.author,
       pages: h.pages ?? d.pages,
       year: h.year ?? d.year,
       // a scanned ISBN stays: the result may be another edition (often the e-book) of the same book
       isbn: miss?.isbn ?? h.isbn ?? d.isbn,
-      publisher: miss?.publisher ?? h.publisher ?? d.publisher,
+      // for manga the catalogues know the series, not the Spanish publisher of your edition
+      publisher: miss?.publisher ?? (h.manga ? d.publisher : h.publisher) ?? d.publisher,
       description: d.description || h.description || '',
       genre: d.genre || h.genre,
       coverRemote: coverTouched ? d.coverRemote : h.cover,
@@ -387,6 +389,12 @@ export function BookForm({ book, onClose, onDelete, kind: initialKind, preset, o
                   <label htmlFor="bf-isbn">ISBN</label>
                   <input id="bf-isbn" inputMode="numeric" value={draft.isbn ?? ''} onChange={(e) => set({ isbn: e.target.value.trim() || undefined })} />
                 </div>
+              </div>
+            )}
+            {(draft.genre === 'Manga y cómic' || draft.volume) && (
+              <div className="field">
+                <label htmlFor="bf-volume">Tomo</label>
+                <input id="bf-volume" inputMode="numeric" value={draft.volume ?? ''} placeholder="Número de tomo de la serie" onChange={(e) => set({ volume: Number(e.target.value.replace(/\D/g, '')) || undefined })} />
               </div>
             )}
             <div className="field">

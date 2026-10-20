@@ -100,6 +100,7 @@ function Spine({ book }: { book: Book }) {
       <span className="spine-band top" />
       <span className="spine-title">{book.title.split(/[:(]| \/ /)[0].trim() || book.title}</span>
       <span className="spine-author">{surname}</span>
+      {book.volume ? <span className="spine-vol">{book.volume}</span> : null}
       <span className="spine-band bottom" />
     </div>
   )

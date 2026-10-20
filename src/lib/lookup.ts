@@ -17,7 +17,11 @@ export interface CatalogHit {
   cover?: string
   genre?: string
   publisher?: string
-  source: 'google' | 'openlibrary' | 'apple'
+  /** manga: number of volumes in the series */
+  volumes?: number
+  /** manga / comic series rather than a single book */
+  manga?: boolean
+  source: 'google' | 'openlibrary' | 'apple' | 'archive' | 'anilist' | 'jikan'
 }
 
 const TIMEOUT = 8000
@@ -70,6 +74,7 @@ function isbn10ok(s: string) {
 // ---------- genres ----------
 
 const GENRE_HINTS: [RegExp, string][] = [
+  [/manga|manhwa|manhua|comic|cómic|historieta|graphic novel|novela gr[aá]fica|bande dessin/i, 'Manga y cómic'],
   [/science fiction|ciencia ficci|dystop|distop/i, 'Ciencia ficción y distopía'],
   [/fantas/i, 'Fantasía'],
   [/horror|terror|thriller|mystery|misterio|suspense|crime|policiac|detective/i, 'Terror y misterio'],
@@ -244,6 +249,119 @@ const sameBook = (a: CatalogHit, title: string, author: string) => {
 
 const settled = <T,>(r: PromiseSettledResult<T>) => (r.status === 'fulfilled' ? r.value : undefined)
 
+// ---------- Internet Archive ----------
+
+interface IADoc { identifier: string; title?: string; creator?: string | string[]; date?: string; publisher?: string | string[]; subject?: string | string[]; imagecount?: number }
+const one = (v?: string | string[]) => (Array.isArray(v) ? v[0] : v)
+/** "García Márquez, Gabriel, 1927-2014" → "Gabriel García Márquez" */
+const personName = (raw?: string) => {
+  if (!raw) return ''
+  const s = raw.replace(/,?\s*\(?\d{4}-?(\d{4})?\)?\.?$/, '').trim()
+  const m = s.match(/^([^,]+),\s*([^,]+)$/)
+  return m ? `${m[2]} ${m[1]}` : s
+}
+
+/** The Internet Archive's library (millions of scanned and lent books, many in Spanish), by ISBN. */
+async function archiveIsbn(isbns: string[]): Promise<CatalogHit | undefined> {
+  const q = `isbn:(${isbns.join(' OR ')}) AND mediatype:texts`
+  const fl = ['identifier', 'title', 'creator', 'date', 'publisher', 'subject', 'imagecount'].map((f) => `fl[]=${f}`).join('&')
+  const d = await getJson<{ response?: { docs?: IADoc[] } }>(`https://archive.org/advancedsearch.php?q=${encodeURIComponent(q)}&${fl}&rows=1&output=json`)
+  const x = d.response?.docs?.[0]
+  if (!x?.title) return undefined
+  const subj = Array.isArray(x.subject) ? x.subject : x.subject ? [x.subject] : []
+  return {
+    title: x.title.replace(/\s*[/:]\s*$/, ''),
+    author: personName(one(x.creator)),
+    year: Number(x.date?.match(/\d{4}/)?.[0]) || undefined,
+    publisher: one(x.publisher)?.replace(/^\[|\]$/g, ''),
+    isbn: isbns[0],
+    cover: `https://archive.org/services/img/${encodeURIComponent(x.identifier)}`,
+    genre: genreFromSubjects(subj),
+    source: 'archive',
+  }
+}
+
+// ---------- manga: AniList (primary) and Jikan / MyAnimeList (backup) ----------
+
+interface ALMedia {
+  title: { romaji?: string; english?: string; native?: string }
+  format?: string; volumes?: number; countryOfOrigin?: string
+  startDate?: { year?: number }; genres?: string[]; description?: string
+  coverImage?: { extraLarge?: string; large?: string }
+  staff?: { edges: { role: string; node: { name: { full: string } } }[] }
+}
+
+const AL_QUERY = `query ($q: String) { Page(perPage: 8) { media(search: $q, type: MANGA, sort: SEARCH_MATCH) {
+  title { romaji english native } format volumes countryOfOrigin startDate { year } genres description(asHtml: false)
+  coverImage { extraLarge large } staff(perPage: 4, sort: RELEVANCE) { edges { role node { name { full } } } } } } }`
+
+const KIND: Record<string, string> = { KR: 'Manhwa', CN: 'Manhua', TW: 'Manhua' }
+
+async function anilistSearch(q: string): Promise<CatalogHit[]> {
+  const ctl = new AbortController()
+  const t = setTimeout(() => ctl.abort(), TIMEOUT)
+  try {
+    const r = await fetch('https://graphql.anilist.co', {
+      method: 'POST', signal: ctl.signal,
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ query: AL_QUERY, variables: { q } }),
+    })
+    if (!r.ok) throw new Error(`HTTP ${r.status}`)
+    const d = (await r.json()) as { data?: { Page?: { media?: ALMedia[] } } }
+    return (d.data?.Page?.media ?? []).map((m) => {
+      const writers = m.staff?.edges.filter((e) => /story|art|original/i.test(e.role)).map((e) => e.node.name.full) ?? []
+      return {
+        title: m.title.english || m.title.romaji || m.title.native || '',
+        author: [...new Set(writers)].slice(0, 2).join(', '),
+        year: m.startDate?.year,
+        volumes: m.volumes || undefined,
+        description: strip(m.description),
+        cover: m.coverImage?.extraLarge ?? m.coverImage?.large,
+        genre: 'Manga y cómic',
+        publisher: m.format === 'NOVEL' ? 'Novela ligera' : KIND[m.countryOfOrigin ?? ''] ?? 'Manga',
+        manga: true,
+        source: 'anilist' as const,
+      }
+    }).filter((h) => h.title)
+  } finally { clearTimeout(t) }
+}
+
+interface JMManga { title?: string; title_english?: string; volumes?: number; synopsis?: string; type?: string; published?: { from?: string }; images?: { jpg?: { large_image_url?: string } }; authors?: { name: string }[] }
+
+async function jikanSearch(q: string): Promise<CatalogHit[]> {
+  const d = await getJson<{ data?: JMManga[] }>(`https://api.jikan.moe/v4/manga?q=${encodeURIComponent(q)}&limit=8&sfw=true&order_by=popularity`)
+  return (d.data ?? []).filter((m) => m.title).map((m) => ({
+    title: m.title_english || m.title!,
+    author: (m.authors ?? []).slice(0, 2).map((a) => personName(a.name)).join(', '),
+    year: Number(m.published?.from?.slice(0, 4)) || undefined,
+    volumes: m.volumes || undefined,
+    description: m.synopsis?.replace(/\[Written by MAL Rewrite\]/, '').trim(),
+    cover: m.images?.jpg?.large_image_url,
+    genre: 'Manga y cómic',
+    publisher: m.type === 'Light Novel' ? 'Novela ligera' : m.type === 'Manhwa' ? 'Manhwa' : m.type === 'Manhua' ? 'Manhua' : 'Manga',
+    manga: true,
+    source: 'jikan' as const,
+  }))
+}
+
+/** "one piece 12", "Berserk tomo 3", "Naruto vol. 7" → series and volume */
+export function splitVolume(q: string): { series: string; volume?: number } {
+  const m = q.match(/^(.*?)[\s,.-]+(tomo|vol(?:umen|\.)?|n[º°o.]?|#)?\s*(\d{1,3})\s*$/i)
+  // a bare trailing number is a volume only if it's plausible («Fahrenheit 451» is a title)
+  if (m && m[1].trim().length > 1 && (m[2] || Number(m[3]) <= 150)) return { series: m[1].trim(), volume: Number(m[3]) }
+  return { series: q.trim() }
+}
+
+/** Manga, manhwa and light novels by series name; AniList first, MyAnimeList (via Jikan) when it's busy. */
+export async function searchManga(q: string): Promise<CatalogHit[]> {
+  const { series } = splitVolume(q)
+  try {
+    const r = await anilistSearch(series)
+    if (r.length) return r
+  } catch { /* rate-limited or offline: try the backup */ }
+  return jikanSearch(series)
+}
+
 /**
  * Everything the catalogues know about one ISBN, merged. Google for text, Open Library for the cover,
  * both ISBN forms, Open Library's edition search as a second chance, and Apple Books to fill a missing
@@ -272,7 +390,7 @@ export async function lookupIsbn(raw: string): Promise<CatalogHit | undefined> {
     }
     const second = await Promise.allSettled([
       googleSearch(isbn, 1).then((l) => l.find((h) => !h.isbn || isbns.includes(h.isbn))).then((h) => h ?? regional()),
-      openLibraryByIsbnSearch(isbns),
+      openLibraryByIsbnSearch(isbns).then((h) => h ?? archiveIsbn(isbns)),
     ])
     gh = settled(second[0]); oh = settled(second[1])
   }
@@ -288,7 +406,7 @@ export async function lookupIsbn(raw: string): Promise<CatalogHit | undefined> {
     description: gh?.description ?? oh?.description,
     genre: gh?.genre ?? oh?.genre,
     isbn,
-    source: gh ? 'google' : 'openlibrary',
+    source: gh?.source ?? oh!.source,
   }
   if (!hit.cover) hit.cover = await openLibraryIsbnCover(isbns).catch(() => undefined)
   if (!hit.cover || !hit.description) {

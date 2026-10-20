@@ -95,6 +95,8 @@ export interface Book {
   isbn?: string
   /** editorial / imprint */
   publisher?: string
+  /** manga and comic series: which volume (tomo) this is */
+  volume?: number
   /** bought in a reading app (Kindle, Apple Books…): tracked by hand like a paper book */
   app?: string
   /** remote cover (catalogue lookup) used when the image could not be stored locally */

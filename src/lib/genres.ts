@@ -3,7 +3,7 @@ import type { Book } from '../types'
 export const GENRES = [
   'Novela', 'Relatos', 'Poesía', 'Ciencia ficción y distopía', 'Fantasía', 'Terror y misterio',
   'Ensayo', 'Feminismo', 'Memorias y biografía', 'Desarrollo personal', 'Creatividad', 'Psicología',
-  'Filosofía y espiritualidad', 'Negocios y finanzas', 'Historia', 'Ciencia y divulgación',
+  'Filosofía y espiritualidad', 'Negocios y finanzas', 'Historia', 'Ciencia y divulgación', 'Manga y cómic',
 ]
 
 const FROM_CATEGORY: Record<string, string> = {

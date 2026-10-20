@@ -1536,3 +1536,10 @@ button.grow:hover { background: rgb(var(--fg-rgb) / .04); }
 .batch li.b-miss { grid-template-columns: 22px minmax(0, 1fr); row-gap: 2px; }
 .batch li.b-miss em { grid-column: 2; }
 .batch li.b-miss .b-find { grid-column: 2; justify-self: start; padding: 4px 11px; font-size: 12.5px; margin-top: 2px; }
+
+/* manga: modes in the finder, volume number on the spine */
+.finder-modes { display: flex; gap: 6px; }
+.finder-modes .chip[aria-checked="true"] { background: var(--gold-dim); color: var(--ivory); border-color: rgb(var(--accent-rgb) / .5); }
+.fh-vol { color: var(--gold); font-weight: 400; }
+.link-btn { color: var(--gold); text-decoration: underline; text-underline-offset: 3px; font: inherit; }
+.spine-vol { flex: none; font-family: var(--f-display); font-size: clamp(9px, 46cqw, 15px); line-height: 1; padding: 3px 0; min-width: 70%; text-align: center; border-radius: 2px; background: color-mix(in srgb, var(--c-ac) 85%, transparent); color: var(--c-bg); font-variant-numeric: lining-nums; margin-bottom: 4px; }

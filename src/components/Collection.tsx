@@ -81,7 +81,7 @@ export function Collection({ visible, filters, setFilters, onBack, onAdd, onEdit
                 </button>
                 <div className="min0">
                   <h3>{b.title}</h3>
-                  <div className="by">{b.author} · {b.category}</div>
+                  <div className="by">{b.volume ? `Tomo ${b.volume} · ` : ''}{b.author} · {b.category}</div>
                   <div className="meta">
                     <span className={`status-pill st-${b.status}`}>{STATUS_LABEL[b.status]}</span>
                     <span className="fmt">{isManual(b) ? editionLabel(b).toLowerCase() : b.format === 'demo' ? 'muestra' : b.format === 'catalogo' ? 'sin archivo' : b.format}</span>

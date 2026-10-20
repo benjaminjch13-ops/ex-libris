@@ -243,6 +243,7 @@ export function Stage({ book, origin, initial, onRead, onClosed, onEdit, onRevie
           <dl className="facts">
             {book.pages ? <div><dt>Páginas</dt><dd>{book.format === 'pdf' || book.format === 'catalogo' || book.format === 'fisico' ? book.pages : `≈ ${book.pages}`}</dd></div> : null}
             {book.isbn ? <div><dt>ISBN</dt><dd>{book.isbn}</dd></div> : null}
+            {book.volume ? <div><dt>Tomo</dt><dd>{book.volume}</dd></div> : null}
             {book.publisher ? <div><dt>Editorial</dt><dd>{book.publisher}</dd></div> : null}
             {book.year ? <div><dt>Publicado</dt><dd>{book.year < 0 ? `${-book.year} a. C.` : book.year}</dd></div> : null}
             <div><dt>Formato</dt><dd>{manual ? editionLabel(book) : book.format === 'demo' ? 'Edición de muestra' : book.format === 'catalogo' ? 'Sin archivo' : book.format.toUpperCase()}{book.fileSize ? ` · ${fmtSize(book.fileSize)}` : ''}</dd></div>
