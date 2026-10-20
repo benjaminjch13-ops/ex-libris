@@ -1428,3 +1428,48 @@ button.grow:hover { background: rgb(var(--fg-rgb) / .04); }
 .stage-timing { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ivory-dim); margin-top: -4px; }
 .stage-timing svg { color: var(--gold); flex: none; }
 .stage-timing i { width: 7px; height: 7px; border-radius: 50%; background: var(--gold); animation: tp-breathe 1.2s ease-in-out infinite alternate; flex: none; }
+
+/* ---------- bulk import ---------- */
+.seg.seg-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 480px) { .seg.seg-3 > button { font-size: 13px; padding: 9px 4px; } }
+.bulk { display: grid; gap: 14px; }
+.bulk-help { display: grid; gap: 2px; margin-top: 14px; }
+.bulk-help details { border-bottom: 1px solid var(--line); }
+.bulk-help summary { cursor: pointer; padding: 11px 2px; font-size: 14px; color: var(--ivory); list-style: none; display: flex; justify-content: space-between; align-items: center; }
+.bulk-help summary::-webkit-details-marker { display: none; }
+.bulk-help summary::after { content: '+'; color: var(--muted); font-size: 18px; transition: transform .25s var(--ease-out); }
+.bulk-help details[open] summary::after { transform: rotate(45deg); color: var(--gold); }
+.bulk-help p { font-size: 13.5px; color: var(--ivory-dim); line-height: 1.55; padding: 0 2px 12px; animation: pref-in .25s var(--ease-out); }
+.bulk-help b { color: var(--ivory); font-weight: 500; }
+.bulk-sum { font-size: 14.5px; color: var(--ivory-dim); line-height: 1.5; }
+.bulk-sum b { color: var(--ivory); font-weight: 500; }
+.bulk-tools { display: flex; gap: 6px; margin: 10px 0 8px; }
+.bulk-list { max-height: min(340px, 42vh); overflow: auto; border: 1px solid var(--line); border-radius: 10px; padding: 4px; display: grid; gap: 2px; overscroll-behavior: contain; }
+.bulk-list label { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; cursor: pointer; transition: background .2s, opacity .2s; opacity: .55; }
+.bulk-list li.on label { opacity: 1; }
+.bulk-list label:hover { background: rgb(var(--fg-rgb) / .05); }
+.bulk-list input { width: 17px; height: 17px; accent-color: var(--gold); flex: none; }
+.bl-main { display: grid; min-width: 0; flex: 1; }
+.bl-main b { font-family: var(--f-display); font-weight: 400; font-size: 15.5px; color: var(--ivory); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bl-main em { font-style: normal; font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bl-tag { flex: none; font-size: 11px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
+.bl-tag.st-terminado { color: var(--ok); border-color: rgb(var(--fg-rgb) / .15); }
+.bl-tag.st-leyendo { color: var(--gold); border-color: rgb(var(--accent-rgb) / .35); }
+.bl-tag.st-abandonado { color: var(--danger); }
+.bulk-opts { display: grid; gap: 12px; margin-top: 14px; }
+.bulk-opts .lbl { display: block; margin-bottom: 6px; }
+.bulk-actions { display: flex; justify-content: flex-end; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
+.bulk-progress { display: grid; justify-items: center; text-align: center; gap: 12px; padding: 18px 4px 4px; }
+.bulk-progress h3 { font-family: var(--f-display); font-weight: 400; font-size: 22px; color: var(--ivory); }
+.bulk-progress .meter { width: 100%; }
+.bulk-progress .meter i { transition: width .4s var(--ease-out); }
+.bp-seal { width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center; border: 1px solid rgb(var(--accent-rgb) / .4); color: var(--gold); background: var(--gold-dim); transition: background .4s, color .4s; }
+.bp-seal.done { background: var(--gold); color: var(--on-accent); animation: bp-pop .5s var(--ease-out); }
+@keyframes bp-pop { 0% { transform: scale(.8) } 60% { transform: scale(1.08) } 100% { transform: none } }
+.bulk-failed { width: 100%; text-align: left; font-size: 13px; color: var(--ivory-dim); }
+.bulk-failed summary { cursor: pointer; color: var(--danger); }
+.bulk-failed ul { margin-top: 6px; display: grid; gap: 4px; padding-left: 16px; list-style: disc; }
+.bulk .hint { font-size: 12.5px; color: var(--muted); line-height: 1.45; }
+.bulk .field .hint { display: block; margin-top: 6px; }
+.bulk .bulk-actions { position: sticky; bottom: -24px; margin: 18px -24px -24px; padding: 14px 24px 22px; background: linear-gradient(rgb(var(--room-rgb) / 0), var(--room-2) 14px); z-index: 2; }
+.bulk-progress .bulk-actions { position: static; background: none; margin: 8px 0 0; padding: 0; }

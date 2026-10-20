@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { Suspense, lazy, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import type { Book, Status } from '../types'
 import { useLibrary } from '../state/library'
@@ -13,7 +13,9 @@ import { Scanner } from './Scanner'
 import { Finder } from './Finder'
 import { fetchCoverBlob, lookupIsbn, type CatalogHit } from '../lib/lookup'
 
-export type AddKind = 'digital' | 'fisico'
+export type AddKind = 'digital' | 'fisico' | 'lote'
+
+const BulkImport = lazy(() => import('./BulkImport').then((m) => ({ default: m.BulkImport })))
 
 const BASE_CATEGORIES = ['Novela', 'Relatos', 'Poesía', 'Ensayo', 'Historia', 'Divulgación', 'Misterio', 'Biografía', 'Filosofía', 'Fantasía', 'Ciencia ficción', 'Infantil', 'Técnico']
 
@@ -44,6 +46,9 @@ export function BookForm({ book, onClose, onDelete, kind: initialKind, preset, o
   const fileInput = useRef<HTMLInputElement>(null)
   const coverInput = useRef<HTMLInputElement>(null)
   const [newCat, setNewCat] = useState(false)
+  const [bulkFiles, setBulkFiles] = useState<File[] | undefined>()
+  /** several files, a .zip or a CSV dropped on the single-book form go to the bulk import */
+  const toBulk = (list: File[]) => { setBulkFiles(list); setKind('lote'); setScan(null) }
 
   const categories = useMemo(() => {
     const s = new Set([...BASE_CATEGORIES, ...books.map((b) => b.category).filter(Boolean)])
@@ -181,9 +186,9 @@ export function BookForm({ book, onClose, onDelete, kind: initialKind, preset, o
 
   return (
     <Modal
-      title={editing ? 'Editar libro' : scan === 'many' ? 'Escanear varios libros' : 'Añadir un libro'}
+      title={editing ? 'Editar libro' : scan === 'many' ? 'Escanear varios libros' : kind === 'lote' ? 'Importar libros' : 'Añadir un libro'}
       onClose={onClose}
-      footer={<>
+      footer={kind === 'lote' ? undefined : <>
         {scan === 'many' ? <button type="button" className="btn btn-gold" onClick={() => { setScan(null); if (added) onClose() }}>{added ? `Listo · ${added} ${added === 1 ? 'libro añadido' : 'libros añadidos'}` : 'Cerrar escáner'}</button> : <>
         {editing && onDelete && <button type="button" className="btn" style={{ marginRight: 'auto', color: 'var(--danger)' }} onClick={() => onDelete(book!)}><Trash size={15} /> Eliminar</button>}
         <button type="button" className="btn" onClick={onClose}>Cancelar</button>
@@ -193,9 +198,10 @@ export function BookForm({ book, onClose, onDelete, kind: initialKind, preset, o
       </>}</>}
     >
       {!editing && !preset?.title && (
-        <div className="seg" role="radiogroup" aria-label="Tipo de libro">
+        <div className="seg seg-3" role="radiogroup" aria-label="Tipo de libro">
           <button type="button" role="radio" aria-checked={kind === 'digital'} onClick={() => { setKind('digital'); setScan(null) }}>EPUB o PDF</button>
           <button type="button" role="radio" aria-checked={kind === 'fisico'} onClick={() => setKind('fisico')}>Libro de papel</button>
+          <button type="button" role="radio" aria-checked={kind === 'lote'} onClick={() => { setKind('lote'); setScan(null) }}>Importar</button>
         </div>
       )}
       <AnimatePresence>
@@ -222,7 +228,12 @@ export function BookForm({ book, onClose, onDelete, kind: initialKind, preset, o
           </motion.div>
         )}
       </AnimatePresence>
-      <form id="book-form" onSubmit={submit} noValidate style={{ display: scan === 'many' ? 'none' : undefined }}>
+      {kind === 'lote' && (
+        <Suspense fallback={<p className="hint"><span className="spin" /> Preparando…</p>}>
+          <BulkImport initial={bulkFiles} onDone={onClose} />
+        </Suspense>
+      )}
+      <form id="book-form" onSubmit={submit} noValidate style={{ display: scan === 'many' || kind === 'lote' ? 'none' : undefined }}>
         <div className="form-grid">
           <div className="cover-col">
             <div className="cover-pick"><Cover book={previewBook} /></div>
@@ -256,7 +267,7 @@ export function BookForm({ book, onClose, onDelete, kind: initialKind, preset, o
                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInput.current?.click() } }}
                 onDragOver={(e) => { e.preventDefault(); setOver(true) }}
                 onDragLeave={() => setOver(false)}
-                onDrop={(e) => { e.preventDefault(); setOver(false); const f = e.dataTransfer.files?.[0]; if (f) takeFile(f) }}
+                onDrop={(e) => { e.preventDefault(); setOver(false); const fs = [...(e.dataTransfer.files ?? [])]; if (fs.length > 1 || /\.(zip|csv|tsv)$/i.test(fs[0]?.name ?? '')) toBulk(fs); else if (fs[0]) takeFile(fs[0]) }}
                 aria-describedby="bf-file-hint"
               >
                 {inspecting ? (
@@ -276,7 +287,7 @@ export function BookForm({ book, onClose, onDelete, kind: initialKind, preset, o
                   </>
                 )}
               </div>
-              <input ref={fileInput} id="bf-file" className="sr-only-input" type="file" accept=".epub,.pdf,application/epub+zip,application/pdf" onChange={(e) => { const f = e.target.files?.[0]; if (f) takeFile(f); e.target.value = '' }} />
+              <input ref={fileInput} id="bf-file" className="sr-only-input" type="file" multiple accept=".epub,.pdf,application/epub+zip,application/pdf" onChange={(e) => { const fs = [...(e.target.files ?? [])]; if (fs.length > 1) toBulk(fs); else if (fs[0]) takeFile(fs[0]); e.target.value = '' }} />
               <span id="bf-file-hint" className="hint">Hasta {MAX_FILE_MB} MB. Leemos título, autor y portada automáticamente si el archivo los incluye.</span>
               {(fileError || errors.file) && <span className="err" role="alert">{fileError || errors.file}</span>}
             </div>

@@ -87,7 +87,7 @@ const GENRE_HINTS: [RegExp, string][] = [
   [/fiction|ficci|novel|novela/i, 'Novela'],
 ]
 
-function genreFromSubjects(subjects: string[] = []): string | undefined {
+export function genreFromSubjects(subjects: string[] = []): string | undefined {
   const text = subjects.join(' | ')
   if (!text) return undefined
   for (const [re, g] of GENRE_HINTS) if (re.test(text) && GENRES.includes(g)) return g
