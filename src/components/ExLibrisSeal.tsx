@@ -42,6 +42,19 @@ export function ExLibrisSeal({ cfg, size = 120, className }: { cfg: ExLibris; si
   })()
   const cx = w / 2
   const name = cfg.name.trim() || 'Tu nombre'
+  // text is fitted to the room the frame leaves at each height, so a long name or phrase never crosses the border
+  // the shield narrows towards its point, so its text sits higher
+  const shield = cfg.shape === 'escudo'
+  const nameY = round ? 88 : shield ? 77 : 86
+  const lines = wrapPhrase(cfg.phrase.trim())
+  const lineY = (i: number) => nameY + (round ? 8.5 : shield ? 7.5 : 9.5) + i * 6
+  const fit = (text: string, y: number, fs: number, k: number) => {
+    const room = innerWidth(cfg.shape, y) - 6
+    const natural = text.length * fs * k
+    return natural > room ? { textLength: room, lengthAdjust: 'spacingAndGlyphs' as const } : {}
+  }
+  const nameFs = name.length > 18 ? 8 : name.length > 13 ? 9 : 10
+  const phraseFs = lines.length > 1 ? 4.4 : 4.8
   return (
     <svg className={className} width={size * (w / h)} height={size} viewBox={`0 0 ${w} ${h}`} role="img" aria-label={`Ex libris de ${name}`}>
       {frame}
@@ -53,9 +66,35 @@ export function ExLibrisSeal({ cfg, size = 120, className }: { cfg: ExLibris; si
       ) : (
         <text x={cx} y={cfg.shape === 'escudo' ? 24 : 25} textAnchor="middle" fontFamily="Bodoni Moda, Didot, Georgia, serif" fontSize="8.5" letterSpacing="3" fill={ink}>EX LIBRIS</text>
       )}
-      <g transform={`translate(${cx - 22} ${round ? 34 : 30}) scale(.74)`}><MotifArt id={cfg.motif} ink={ink} /></g>
-      <text x={cx} y={round ? 92 : 88} textAnchor="middle" fontFamily="Bodoni Moda, Didot, Georgia, serif" fontStyle="italic" fontSize={name.length > 16 ? 8 : 10} fill={ink}>{name}</text>
-      {cfg.phrase.trim() && <text x={cx} y={round ? 102 : 99} textAnchor="middle" fontFamily="Hanken Grotesk, system-ui, sans-serif" fontSize="4.6" letterSpacing=".6" fill={ink} opacity=".85">{cfg.phrase.trim().slice(0, 34)}</text>}
+      <g transform={shield ? `translate(${cx - 18} 30) scale(.6)` : `translate(${cx - 20} ${round ? 33 : 29}) scale(.68)`}><MotifArt id={cfg.motif} ink={ink} /></g>
+      <text x={cx} y={nameY} textAnchor="middle" fontFamily="Bodoni Moda, Didot, Georgia, serif" fontStyle="italic" fontSize={nameFs} fill={ink} {...fit(name, nameY, nameFs, 0.48)}>{name}</text>
+      {lines.map((l, i) => (
+        <text key={i} x={cx} y={lineY(i)} textAnchor="middle" fontFamily="Hanken Grotesk, system-ui, sans-serif" fontSize={phraseFs} letterSpacing=".3" fill={ink} opacity=".85" {...fit(l, lineY(i), phraseFs, 0.56)}>{l}</text>
+      ))}
     </svg>
   )
+}
+
+/** Width inside the inner frame at a given height of the 120-unit-tall seal. */
+function innerWidth(shape: ExLibris['shape'], y: number) {
+  if (shape === 'circulo') return 2 * Math.sqrt(Math.max(0, 52.5 ** 2 - (y - 60) ** 2))
+  if (shape === 'ovalo') return 2 * 42.5 * Math.sqrt(Math.max(0, 1 - ((y - 60) / 52.5) ** 2))
+  if (shape === 'escudo') return y <= 62 ? 78 : 78 * Math.max(0, 1 - Math.pow((y - 62) / 48, 1.7))
+  return 82
+}
+
+/** Up to two balanced lines; anything longer is cut with an ellipsis. */
+function wrapPhrase(p: string): string[] {
+  if (!p) return []
+  if (p.length <= 20) return [p]
+  const words = p.split(/\s+/)
+  let best: [string, string] = [p, '']
+  let bestDiff = Infinity
+  for (let i = 1; i < words.length; i++) {
+    const a = words.slice(0, i).join(' '), b = words.slice(i).join(' ')
+    const d = Math.max(a.length, b.length)
+    if (d < bestDiff) { bestDiff = d; best = [a, b] }
+  }
+  const cut = (x: string) => (x.length > 24 ? `${x.slice(0, 23)}…` : x)
+  return best[1] ? [cut(best[0]), cut(best[1])] : [cut(p)]
 }
