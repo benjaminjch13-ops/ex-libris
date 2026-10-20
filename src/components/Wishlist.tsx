@@ -8,14 +8,16 @@ import { fetchCoverBlob, lookupLink, parseStoreLink, cleanShareTitle, type Catal
 import { Modal } from './Modal'
 import { Finder } from './Finder'
 import { ChevronLeft, Close, Edit, Plus, Trash } from './Icons'
+import { RecsStrip } from './Recs'
 
 export interface SharedIn { url?: string; text?: string; title?: string }
 
 const norm = (s: string) => s.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
 
 /** Wishlist: books to buy, each with one or more store links. */
-export function Wishlist({ onBack, shared, onSharedDone, onBuyDigital }: {
+export function Wishlist({ onBack, shared, onSharedDone, onBuyDigital, onRecs }: {
   onBack: () => void
+  onRecs: () => void
   shared?: SharedIn | null
   onSharedDone: () => void
   onBuyDigital: (preset: Partial<Book>, wishId: string, keepInTbr: boolean) => void
@@ -102,7 +104,9 @@ export function Wishlist({ onBack, shared, onSharedDone, onBuyDigital }: {
           <h3>Tu wishlist está vacía</h3>
           <p>Cuando veas un libro que te llama, guarda aquí el enlace. Al comprarlo, pasa a tu biblioteca con un toque.</p>
         </div>
-      ) : (
+      ) : null}
+      {wishes.length === 0 && <RecsStrip onMore={onRecs} />}
+      {wishes.length > 0 && (
         <motion.ul className="wish-list" layout>
           <AnimatePresence initial={false}>
             {wishes.map((w) => {
@@ -134,6 +138,7 @@ export function Wishlist({ onBack, shared, onSharedDone, onBuyDigital }: {
           </AnimatePresence>
         </motion.ul>
       )}
+      {wishes.length > 0 && <RecsStrip onMore={onRecs} compact />}
 
       <AnimatePresence>
         {editing && <WishEditor key={editing.item.id} item={editing.item} isNew={editing.isNew} query={editing.query} onClose={() => setEditing(null)} />}

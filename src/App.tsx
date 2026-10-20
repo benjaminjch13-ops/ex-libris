@@ -204,6 +204,7 @@ function Shell() {
                   shared={shared}
                   onSharedDone={() => setShared(null)}
                   onBuyDigital={(preset, wishId, keep) => setForm({ kind: 'digital', preset, onSaved: (b) => wishBought(wishId, b.id, keep) })}
+                  onRecs={() => setView('recs')}
                 />
               )}
               {view === 'history' && <History onBack={() => setView('library')} />}

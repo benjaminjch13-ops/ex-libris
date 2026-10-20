@@ -74,13 +74,11 @@ function RecCover({ rec, eager }: { rec: Rec; eager?: boolean }) {
 
 // ---------- the view ----------
 
-export function Recs({ onBack, onWishlist }: { onBack: () => void; onWishlist: () => void }) {
+/** Shared state for every place that shows suggestions: taste, dismissed titles, and "save to wishlist". */
+function useRecs(salt = 0) {
   const { books, wishes, saveWish, addToTbr, tbr, notify } = useLibrary()
   const [prefs, setPrefs] = useState<RecPrefs | null | undefined>(undefined)
   const [dismissed, setDismissed] = useState<string[]>([])
-  const [salt, setSalt] = useState(0)
-  const [detail, setDetail] = useState<Rec | null>(null)
-  const [picking, setPicking] = useState(false)
 
   useEffect(() => {
     store().then(async (s) => {
@@ -98,7 +96,7 @@ export function Recs({ onBack, onWishlist }: { onBack: () => void; onWishlist: (
   }
 
   const profile = useMemo(() => buildProfile(books, wishes, prefs), [books, wishes, prefs])
-  const shelves = useMemo(() => buildShelves(profile, new Set(dismissed), salt), [profile, dismissed, salt])
+  const shelves = useMemo(() => (prefs === undefined ? [] : buildShelves(profile, new Set(dismissed), salt)), [profile, dismissed, salt, prefs])
   const wished = useMemo(() => new Set(wishes.map((w) => recKey({ t: w.title, a: w.author }))), [wishes])
 
   const toWish = (r: Rec, alsoTbr = false) => {
@@ -113,6 +111,68 @@ export function Recs({ onBack, onWishlist }: { onBack: () => void; onWishlist: (
     if (alsoTbr && !tbr.includes(`w:${w.id}`)) addToTbr(`w:${w.id}`)
     notify(alsoTbr ? `«${r.book.t}» está en tu wishlist y en «Por leer»` : `«${r.book.t}» está en tu wishlist`)
   }
+  const inTbr = (key: string) => !!wishes.find((w) => recKey({ t: w.title, a: w.author }) === key && tbr.includes(`w:${w.id}`))
+
+  return { books, wishes, prefs, savePrefs, dismissed, dismiss, profile, shelves, wished, toWish, inTbr }
+}
+
+function RecCard({ r, wished, onOpen, onHeart }: { r: Rec; wished: boolean; onOpen: () => void; onHeart: () => void }) {
+  return (
+    <motion.article className="rec-card" role="listitem" layout exit={{ opacity: 0, scale: 0.9 }}>
+      <button className="rc-open" onClick={onOpen} aria-label={`${r.book.t}, de ${r.book.a}. Ver sinopsis y dónde encontrarlo`}>
+        <RecCover rec={r} />
+        <span className="rc-reason">{r.reason}</span>
+        <b className="rc-title">{r.book.t}</b>
+        <span className="rc-author">{r.book.a}</span>
+      </button>
+      <button className={`rc-heart${wished ? ' on' : ''}`} onClick={onHeart} aria-label={wished ? `${r.book.t} ya está en tu wishlist` : `Guardar ${r.book.t} en la wishlist`} aria-pressed={wished}>
+        <Heart size={16} filled={wished} />
+      </button>
+    </motion.article>
+  )
+}
+
+/**
+ * Suggestions inside the wishlist: picks that aren't saved yet. Saving one moves it into the list above,
+ * so the strip keeps offering new titles.
+ */
+export function RecsStrip({ onMore, compact }: { onMore: () => void; compact?: boolean }) {
+  const { shelves, wished, toWish, dismiss, inTbr, books } = useRecs()
+  const [detail, setDetail] = useState<Rec | null>(null)
+  const seen = new Set<string>()
+  const items = shelves.flatMap((s) => s.items).filter((r) => !seen.has(r.key) && (seen.add(r.key), true)).slice(0, compact ? 8 : 12)
+  if (!items.length) return null
+  return (
+    <div className="rec-shelf wish-recs">
+      <div className="rs-head rs-head-row">
+        <div>
+          <h2>{compact ? 'Más para tu wishlist' : '¿No sabes qué pedir?'}</h2>
+          <p>{books.length ? 'Elegidos según tu biblioteca. Toca el corazón para guardarlos aquí.' : 'Los favoritos de casi todos los lectores. Toca el corazón para guardarlos aquí.'}</p>
+        </div>
+        <button className="chip" onClick={onMore}>Ver todas las sugerencias →</button>
+      </div>
+      <div className="rs-row" role="list">
+        <AnimatePresence initial={false}>
+          {items.map((r) => <RecCard key={r.key} r={r} wished={wished.has(r.key)} onOpen={() => setDetail(r)} onHeart={() => toWish(r)} />)}
+        </AnimatePresence>
+      </div>
+      <AnimatePresence>
+        {detail && (
+          <RecDetail key={detail.key} rec={detail} inWish={wished.has(detail.key)} inTbr={inTbr(detail.key)}
+            onClose={() => setDetail(null)} onWish={(alsoTbr) => { toWish(detail, alsoTbr); setDetail(null) }}
+            onDismiss={(why) => { dismiss(detail.key, why); setDetail(null) }} onWishlist={() => setDetail(null)} />
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
+export function Recs({ onBack, onWishlist }: { onBack: () => void; onWishlist: () => void }) {
+  const [salt, setSalt] = useState(0)
+  const { books, wishes, prefs, savePrefs, dismiss, profile, shelves, wished, toWish, inTbr } = useRecs(salt)
+  const { notify } = useLibrary()
+  const [detail, setDetail] = useState<Rec | null>(null)
+  const [picking, setPicking] = useState(false)
 
   const top = [...profile.genres.entries()].filter(([, v]) => v > 0.15).sort((a, b) => b[1] - a[1]).map(([k]) => k).slice(0, 3)
   const showPicker = prefs === null && books.filter((b) => genreOf(b) !== NO_GENRE).length < 3
@@ -147,19 +207,7 @@ export function Recs({ onBack, onWishlist }: { onBack: () => void; onWishlist: (
             {sh.sub && <p>{sh.sub}</p>}
           </div>
           <div className="rs-row" role="list">
-            {sh.items.map((r) => (
-              <article key={r.key} className="rec-card" role="listitem">
-                <button className="rc-open" onClick={() => setDetail(r)} aria-label={`${r.book.t}, de ${r.book.a}. Ver sinopsis y dónde encontrarlo`}>
-                  <RecCover rec={r} />
-                  <span className="rc-reason">{r.reason}</span>
-                  <b className="rc-title">{r.book.t}</b>
-                  <span className="rc-author">{r.book.a}</span>
-                </button>
-                <button className={`rc-heart${wished.has(r.key) ? ' on' : ''}`} onClick={() => (wished.has(r.key) ? onWishlist() : toWish(r))} aria-label={wished.has(r.key) ? `${r.book.t} ya está en tu wishlist` : `Guardar ${r.book.t} en la wishlist`} aria-pressed={wished.has(r.key)}>
-                  <Heart size={16} filled={wished.has(r.key)} />
-                </button>
-              </article>
-            ))}
+            {sh.items.map((r) => <RecCard key={r.key} r={r} wished={wished.has(r.key)} onOpen={() => setDetail(r)} onHeart={() => (wished.has(r.key) ? onWishlist() : toWish(r))} />)}
           </div>
         </div>
       ))}
@@ -168,7 +216,7 @@ export function Recs({ onBack, onWishlist }: { onBack: () => void; onWishlist: (
 
       <AnimatePresence>
         {detail && (
-          <RecDetail key={detail.key} rec={detail} inWish={wished.has(detail.key)} inTbr={!!wishes.find((w) => recKey({ t: w.title, a: w.author }) === detail.key && tbr.includes(`w:${w.id}`))}
+          <RecDetail key={detail.key} rec={detail} inWish={wished.has(detail.key)} inTbr={inTbr(detail.key)}
             onClose={() => setDetail(null)} onWish={(alsoTbr) => toWish(detail, alsoTbr)}
             onDismiss={(why) => { dismiss(detail.key, why); setDetail(null) }} onWishlist={() => { setDetail(null); onWishlist() }} />
         )}
