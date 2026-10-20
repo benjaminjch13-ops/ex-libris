@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
-import { renderToStaticMarkup } from 'react-dom/server'
+import { flushSync } from 'react-dom'
+import { createRoot } from 'react-dom/client'
 import type { Book } from '../types'
 import { useLibrary } from '../state/library'
 import { genreOf } from '../lib/genres'
@@ -160,7 +161,12 @@ async function drawCard(st: YearStats, name: string, ex: Parameters<typeof ExLib
   }
   if (ex) {
     try {
-      const svg = renderToStaticMarkup(<ExLibrisSeal cfg={{ ...ex, ink: gold }} size={150} />).replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"')
+      // render the seal off-screen and read back its SVG markup
+      const host = document.createElement('div')
+      const root = createRoot(host)
+      flushSync(() => root.render(<ExLibrisSeal cfg={{ ...ex, ink: gold }} size={150} />))
+      const svg = host.innerHTML.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"')
+      root.unmount()
       const img = await loadImg(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`)
       g.globalAlpha = .9; g.drawImage(img, W - 230, H - 230, 125 * (img.width / img.height), 125); g.globalAlpha = 1
     } catch { /* ignore */ }
