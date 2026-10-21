@@ -247,6 +247,34 @@ const sameBook = (a: CatalogHit, title: string, author: string) => {
   return (t1.startsWith(t2) || t2.startsWith(t1)) && (!last || norm(a.author).includes(last))
 }
 
+// ---------- memory of past lookups ----------
+/**
+ * What the catalogues answered, remembered on this device: repeat searches are instant and don't
+ * spend the public APIs' quotas (AniList allows ~30 a minute). Found books are kept two weeks,
+ * "not found" one day; errors (offline) are never stored. Capped so it stays a few hundred KB.
+ */
+const CACHE_KEY = 'exl-lookup-v1', CACHE_MAX = 250, DAY_MS = 86400000
+let memo: Map<string, { t: number; v: unknown }> | null = null
+function cacheMap() {
+  if (memo) return memo
+  try { memo = new Map(JSON.parse(localStorage.getItem(CACHE_KEY) ?? '[]')) } catch { memo = new Map() }
+  return memo
+}
+let saveTimer: ReturnType<typeof setTimeout> | undefined
+function saveCache() {
+  clearTimeout(saveTimer)
+  saveTimer = setTimeout(() => { try { localStorage.setItem(CACHE_KEY, JSON.stringify([...cacheMap()])) } catch { /* full or blocked: memory only */ } }, 400)
+}
+async function cached<T>(key: string, live: () => Promise<T>, isEmpty: (v: T) => boolean): Promise<T> {
+  const m = cacheMap(), e = m.get(key)
+  if (e && Date.now() - e.t < (isEmpty(e.v as T) ? DAY_MS : 14 * DAY_MS)) return e.v as T
+  const v = await live()
+  m.delete(key); m.set(key, { t: Date.now(), v })
+  while (m.size > CACHE_MAX) m.delete(m.keys().next().value!)
+  saveCache()
+  return v
+}
+
 const settled = <T,>(r: PromiseSettledResult<T>) => (r.status === 'fulfilled' ? r.value : undefined)
 
 // ---------- Internet Archive ----------
@@ -355,6 +383,10 @@ export function splitVolume(q: string): { series: string; volume?: number } {
 /** Manga, manhwa and light novels by series name; AniList first, MyAnimeList (via Jikan) when it's busy. */
 export async function searchManga(q: string): Promise<CatalogHit[]> {
   const { series } = splitVolume(q)
+  return cached(`m:${norm(series)}`, () => searchMangaLive(series), (v) => !v.length)
+}
+
+async function searchMangaLive(series: string): Promise<CatalogHit[]> {
   try {
     const r = await anilistSearch(series)
     if (r.length) return r
@@ -370,6 +402,10 @@ export async function searchManga(q: string): Promise<CatalogHit[]> {
 export async function lookupIsbn(raw: string): Promise<CatalogHit | undefined> {
   const isbn = cleanIsbn(raw)
   if (!isbn) return undefined
+  return cached(`isbn:${isbn}`, () => lookupIsbnLive(isbn), (v) => !v)
+}
+
+async function lookupIsbnLive(isbn: string): Promise<CatalogHit | undefined> {
   const twin = isbnTwin(isbn)
   const isbns = twin ? [isbn, twin] : [isbn]
   const google = async () => {
@@ -429,6 +465,10 @@ export async function searchCatalog(q: string): Promise<CatalogHit[]> {
     const hit = await lookupIsbn(isbn)
     return hit ? [hit] : []
   }
+  return cached(`q:${norm(query)}`, () => searchCatalogLive(query), (v) => !v.length)
+}
+
+async function searchCatalogLive(query: string): Promise<CatalogHit[]> {
   const [g, o] = await Promise.allSettled([googleSearch(query), openLibrarySearch(query, 6)])
   const all = [...(g.status === 'fulfilled' ? g.value : []), ...(o.status === 'fulfilled' ? o.value : [])]
   // few results (common with Spanish titles): Apple Books often has them

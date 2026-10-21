@@ -9,6 +9,7 @@ import { buildProfile, buildShelves, fmtYear, recKey, whereToFind, type Rec, typ
 import { Modal } from './Modal'
 import { Cover } from './BookArt'
 import { ChevronLeft, Heart } from './Icons'
+import { TeaserSkeleton } from './Skeleton'
 
 // ---------- covers: looked up once per title, cached on the device ----------
 const COVER_KEY = 'exl-rec-covers'
@@ -313,9 +314,10 @@ export function RecsTeaser({ onOpen }: { onOpen: () => void }) {
     const sh = buildShelves(buildProfile(books, wishes, state.prefs), new Set(state.dismissed))
     return sh[0]?.items.slice(0, 5) ?? []
   }, [books, wishes, state])
+  if (!state) return <TeaserSkeleton />
   if (!picks.length) return null
   return (
-    <motion.button className="recs-teaser" onClick={onOpen} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+    <button className="recs-teaser fade-up" onClick={onOpen}>
       <span className="rt-covers" aria-hidden>{picks.map((r) => <RecCover key={r.key} rec={r} />)}</span>
       <span className="rt-copy">
         <span className="eyebrow">Para ti</span>
@@ -323,6 +325,6 @@ export function RecsTeaser({ onOpen }: { onOpen: () => void }) {
         <span className="muted">{books.length ? `Elegidos según tu biblioteca · «${picks[0].book.t}» y más` : 'Los favoritos de casi todos los lectores, con sinopsis y dónde encontrarlos'}</span>
       </span>
       <span className="rt-go" aria-hidden>→</span>
-    </motion.button>
+    </button>
   )
 }

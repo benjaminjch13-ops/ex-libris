@@ -1,4 +1,4 @@
-# Publishes the beta to GitHub Pages on every push to main.
+# Checks and publishes the beta to GitHub Pages on every push to main.
 # One-time setup in the repo: Settings → Pages → Source: "GitHub Actions".
 name: Publicar beta en GitHub Pages
 
@@ -17,7 +17,30 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # automatic checks: types, lint, unit tests and the app in a phone and a desktop browser.
+  # If any fails, nothing is published.
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx tsc -b
+      - run: npx oxlint src
+      - run: npx playwright install --with-deps chromium
+      - run: npx playwright test
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: resultados-de-pruebas
+          path: test-results
+          retention-days: 7
+
   build:
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

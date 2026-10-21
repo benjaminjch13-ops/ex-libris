@@ -9,6 +9,7 @@ import { fmtSize } from '../lib/hooks'
 import { bookKey, scanInputs, type ListRow, type Scan } from '../lib/bulk'
 import { fetchCoverBlob, genreFromSubjects, lookupIsbn, searchCatalog, type CatalogHit } from '../lib/lookup'
 import { Check, Upload } from './Icons'
+import { haptic } from '../lib/haptics'
 
 type Item =
   | { kind: 'file'; key: string; file: File; title: string; dup: boolean; on: boolean }
@@ -159,6 +160,7 @@ export function BulkImport({ initial, onDone }: { initial?: File[]; onDone: () =
     })
     setDone({ n: total, ok, failed })
     setPhase('done')
+    haptic('success')
     notify(ok === 1 ? '1 libro añadido a la biblioteca' : `${ok} libros añadidos a la biblioteca`)
   }
 

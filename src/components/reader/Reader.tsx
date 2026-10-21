@@ -12,6 +12,7 @@ import { NotesLayer, NotePopup, anchorFor, notePosition } from './Notes'
 import { uid } from '../../lib/db'
 import { MARGIN_K, readingKey } from '../../lib/reading'
 import { ReadingPanel } from '../Preferences'
+import { haptic } from '../../lib/haptics'
 
 interface Props {
   book: Book
@@ -252,6 +253,7 @@ function ReaderBody({ book, src, vp, reduce, fromStart, onClose, settings, updat
       if (atEnd && !session.current.finished && book.status !== 'terminado') {
         session.current.finished = true
         setStatus(book.id, 'terminado')
+        haptic('success')
         await addHistory({ bookId: book.id, title: book.title, author: book.author, type: 'terminado', at: Date.now(), total })
         notify(`Terminaste «${book.title}»`)
       }

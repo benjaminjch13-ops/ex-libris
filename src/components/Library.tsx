@@ -6,11 +6,15 @@ import { Book3D, bookDims } from './BookArt'
 import { greeting, relTime, useMedia } from '../lib/hooks'
 import { ChevronRight, Heart, Plus } from './Icons'
 import type { Filters } from '../lib/filters'
-import { staleBook, weeksSince } from './Flows'
-import { TbrNext } from './Tbr'
+import { staleBook, weeksSince } from '../lib/books'
+import { TbrNext } from './TbrNext'
 import { StreakWidget } from './Streak'
 import { genreOf } from '../lib/genres'
 import type { DecorId, HomeSection, ShelfPrefs } from '../types'
+import { LoansSection } from './Loans'
+import { TeaserSkeleton } from './Skeleton'
+import { WhenVisible } from './WhenVisible'
+import { EmptyArt } from './EmptyArt'
 
 // the suggestions catalogue is loaded after the shelf is on screen
 const RecsTeaser = lazy(() => import('./Recs').then((m) => ({ default: m.RecsTeaser })))
@@ -52,7 +56,7 @@ export function Library({ visible: all, filters, setFilters, selectedId, onOpen,
     [books],
   )
   const finished = books.filter((b) => b.status === 'terminado').length
-  const filtering = filters.q || filters.status !== 'todos' || filters.category || filters.author || filters.fav || filters.shelf
+  const filtering = filters.q || filters.status !== 'todos' || filters.category || filters.author || filters.fav || filters.shelf || filters.loaned
 
   // paper books get their own bookcase; books read in another app (Kindle…) stay with the digital ones
   const isPaper = (b: Book) => b.format === 'fisico' && !b.app
@@ -69,7 +73,7 @@ export function Library({ visible: all, filters, setFilters, selectedId, onOpen,
 
   const name = settings.readerName.trim()
   const lead = reading[0]
-  const order: HomeSection[] = settings.home?.order ?? ['racha', 'mesa', 'siguiente', 'parati', 'resumen']
+  const order: HomeSection[] = settings.home?.order ?? ['racha', 'mesa', 'prestados', 'siguiente', 'parati', 'resumen']
   const hidden = new Set(settings.home?.hidden ?? [])
 
   return (
@@ -96,20 +100,21 @@ export function Library({ visible: all, filters, setFilters, selectedId, onOpen,
       </section>
 
       {stale && !filtering && (
-        <motion.div className="nudge" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} role="status">
+        <div className="nudge fade-up" role="status">
           <p>Hace {weeksSince(stale)} semanas que no abres <em>{stale.title}</em>. ¿Cómo va?</p>
           <div className="nudge-acts">
             <button className="chip" onClick={() => { patchBook(stale.id, { nudgeAfter: Date.now() + 21 * 86400000 }); notify('Perfecto, sigue en tu mesa') }}>Lo sigo leyendo</button>
             <button className="chip" onClick={() => { setStatus(stale.id, 'pendiente'); addToTbr(stale.id, 'start'); notify('En pausa: quedó primero en «Por leer»') }}>Pausarlo</button>
             <button className="chip" onClick={() => onDrop(stale)}>Dejarlo</button>
           </div>
-        </motion.div>
+        </div>
       )}
 
       {!filtering && order.filter((sec) => !hidden.has(sec)).map((sec) => {
         if (sec === 'racha') return books.length > 0 ? <StreakWidget key="racha" onYear={onYear} onGoals={onGoals} /> : null
         if (sec === 'siguiente') return books.length > 0 ? <section key="siguiente" aria-label="Siguiente lectura"><TbrNext onStart={onStart} onOpen={onTbr} /></section> : null
-        if (sec === 'parati') return <Suspense key="parati" fallback={null}><RecsTeaser onOpen={onRecs} /></Suspense>
+        if (sec === 'parati') return <WhenVisible key="parati" placeholder={<TeaserSkeleton />}><Suspense fallback={<TeaserSkeleton />}><RecsTeaser onOpen={onRecs} /></Suspense></WhenVisible>
+        if (sec === 'prestados') return <LoansSection key="prestados" onOpen={onOpen} small={small} />
         if (sec === 'mesa' && reading.length > 0) return (
           <div key="mesa">
           <section aria-labelledby="desk-h">
@@ -162,6 +167,7 @@ export function Library({ visible: all, filters, setFilters, selectedId, onOpen,
         {books.length === 0 ? (
           <div className="bookcase" style={{ marginTop: 26 }}>
             <div className="empty-state">
+              <EmptyArt kind="shelf" />
               <h3>Los estantes esperan su primer libro</h3>
               <p>Sube un EPUB o un PDF, o escanea el código de barras de un libro de papel. Leeremos su título, autor y portada para colocarlo en su sitio.</p>
               <p className="empty-tip">Tus libros se guardan solo en este dispositivo. ¿No tienes un EPUB a mano? Hay clásicos gratuitos y legales en <a href="https://www.gutenberg.org/browse/languages/es" target="_blank" rel="noopener noreferrer">Project Gutenberg</a>.</p>
@@ -171,6 +177,7 @@ export function Library({ visible: all, filters, setFilters, selectedId, onOpen,
         ) : visible.length === 0 ? (
           <div className="bookcase" style={{ marginTop: 26 }}>
             <div className="empty-state">
+              <EmptyArt kind="search" />
               <h3>Ningún libro coincide</h3>
               <p>Prueba con otra palabra o quita algún filtro.</p>
               <button className="btn" onClick={() => setFilters({ q: '', status: 'todos', category: '', author: '', fav: false, shelf: undefined })}>Quitar filtros</button>
@@ -319,7 +326,7 @@ function Shelf({ index, row, selectedId, onOpen, decor, scale }: { index: number
               style={{ width: it.width - 3 }}
             >
               <button
-                className={`shelf-book ${it.pose === 'face' ? 'face' : ''}${selectedId === it.book.id ? ' is-hidden' : ''}`}
+                className={`shelf-book ${it.pose === 'face' ? 'face' : ''}${selectedId === it.book.id ? ' is-hidden' : ''}${it.book.loan ? ' loaned' : ''}`}
                 data-book-id={it.book.id}
                 data-pose={it.pose}
                 style={{ '--w': `${it.dims.w}px`, '--h': `${it.dims.h}px`, '--d': `${it.dims.d}px` } as React.CSSProperties}
@@ -328,7 +335,7 @@ function Shelf({ index, row, selectedId, onOpen, decor, scale }: { index: number
                 onFocus={() => setHover(it.book)}
                 onBlur={() => setHover(null)}
                 onClick={(e) => onOpen(it.book, { rect: e.currentTarget.getBoundingClientRect(), pose: it.pose === 'face' ? 'tilt' : 'spine' })}
-                aria-label={`${it.book.title}, de ${it.book.author}. ${statusText(it.book.status)}${it.book.favorite ? ', favorito' : ''}. Abrir vista previa`}
+                aria-label={`${it.book.title}, de ${it.book.author}. ${statusText(it.book.status)}${it.book.favorite ? ', favorito' : ''}${it.book.loan ? `, prestado a ${it.book.loan.to}` : ''}. Abrir vista previa`}
               >
                 {it.book.favorite && <Heart className="fav" size={12} filled />}
                 <Book3D book={it.book} dims={it.dims} />
@@ -445,6 +452,7 @@ export function FilterBar({ filters, setFilters, withDropped }: { filters: Filte
   const categories = [...new Set(books.map((b) => b.category).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es'))
   const authors = [...new Set(books.map((b) => b.author).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es'))
   const count = (s: Status) => books.filter((b) => b.status === s).length
+  const loaned = every.filter((b) => b.loan).length
   const opts: { v: Filters['status']; l: string; n?: number }[] = [
     { v: 'todos', l: 'Todos', n: books.length },
     { v: 'leyendo', l: 'Leyendo', n: count('leyendo') },
@@ -462,6 +470,11 @@ export function FilterBar({ filters, setFilters, withDropped }: { filters: Filte
       <button className="chip" aria-pressed={filters.fav} onClick={() => setFilters({ ...filters, fav: !filters.fav })}>
         <Heart size={13} filled={filters.fav} /> Favoritos
       </button>
+      {(loaned > 0 || filters.loaned) && (
+        <button className="chip" aria-pressed={!!filters.loaned} onClick={() => setFilters({ ...filters, loaned: !filters.loaned })}>
+          Prestados <span className="n">{loaned}</span>
+        </button>
+      )}
       <span className="sep hide-sm" />
       <label className="sr-only" htmlFor="f-cat">Género o categoría</label>
       <select id="f-cat" className="select" value={filters.category} onChange={(e) => setFilters({ ...filters, category: e.target.value })}>

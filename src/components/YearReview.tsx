@@ -6,9 +6,10 @@ import { useLibrary } from '../state/library'
 import { genreOf } from '../lib/genres'
 import { yearStats, type YearStats } from '../lib/streak'
 import { Cover } from './BookArt'
-import { Stars } from './ReviewDialog'
+import { Stars } from './Stars'
 import { ExLibrisSeal } from './ExLibrisSeal'
 import { ChevronLeft } from './Icons'
+import { EmptyArt } from './EmptyArt'
 
 const MONTHS = ['E', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D']
 const fmtHours = (m: number) => (m < 60 ? `${m} min` : `${Math.round(m / 6) / 10} h`.replace('.', ','))
@@ -59,7 +60,7 @@ export function YearReview({ onBack, onOpenBook }: { onBack: () => void; onOpenB
       </div>
 
       {st.finished.length === 0 && st.minutes === 0 ? (
-        <div className="empty-state"><h3>Todavía no hay lecturas en {year}</h3><p>Cuando termines libros o anotes sesiones, aquí aparecerá el resumen de tu año.</p></div>
+        <div className="empty-state"><EmptyArt kind="year" /><h3>Todavía no hay lecturas en {year}</h3><p>Cuando termines libros o anotes sesiones, aquí aparecerá el resumen de tu año.</p></div>
       ) : (
         <>
           <div className="yr-hero">

@@ -4,10 +4,11 @@ import { DROP_REASONS } from '../types'
 import { useLibrary } from '../state/library'
 import { Modal } from './Modal'
 import { Cover } from './BookArt'
+import { haptic } from '../lib/haptics'
+import { editionLabel, isManual } from '../lib/books'
+export { isManual, editionLabel } from '../lib/books'
 
 const pctOf = (b: Book) => Math.round((b.progress?.percent ?? 0) * 100)
-export const isManual = (b: Book) => b.format === 'fisico'
-export const editionLabel = (b: Book) => (b.app ? `En ${b.app}` : 'Papel')
 
 /** Paper books (and books read in another app): progress is entered by hand. */
 export function PageDialog({ book, seconds, onClose, onFinished, onLogged }: { book: Book; seconds?: number; onClose: () => void; onFinished: (id: string) => void; onLogged?: () => void }) {
@@ -29,6 +30,7 @@ export function PageDialog({ book, seconds, onClose, onFinished, onLogged }: { b
     await patchBook(book.id, { pages: t, progress: { chapter: 0, ratio: 1, page: t, total: t, percent: 1, updatedAt: Date.now() }, lastOpenedAt: Date.now() })
     if (t > prev) await addHistory({ bookId: book.id, title: book.title, author: book.author, type: 'sesion', at: Date.now(), fromPage: prev || 1, toPage: t, total: t, minutes: minutes ?? undefined, seconds: secs() })
     setStatus(book.id, 'terminado')
+    haptic('success')
     await addHistory({ bookId: book.id, title: book.title, author: book.author, type: 'terminado', at: Date.now() })
     onLogged?.()
     onClose()
@@ -194,22 +196,4 @@ export function NextUpDialog({ afterId, onClose, onStart, onGoTbr }: {
       )}
     </Modal>
   )
-}
-
-const DAY = 86400000
-const NUDGE_DAYS = 21
-
-/** A book "being read" that hasn't been touched for weeks. */
-export function staleBook(books: Book[]): Book | undefined {
-  const now = Date.now()
-  return books
-    .filter((b) => b.status === 'leyendo' && (b.nudgeAfter ?? 0) < now)
-    .map((b) => ({ b, last: Math.max(b.lastOpenedAt ?? 0, b.progress?.updatedAt ?? 0, b.startedAt ?? 0, b.addedAt) }))
-    .filter((x) => now - x.last > NUDGE_DAYS * DAY)
-    .sort((a, b) => a.last - b.last)[0]?.b
-}
-
-export function weeksSince(b: Book) {
-  const last = Math.max(b.lastOpenedAt ?? 0, b.progress?.updatedAt ?? 0, b.startedAt ?? 0, b.addedAt)
-  return Math.max(3, Math.round((Date.now() - last) / (7 * DAY)))
 }

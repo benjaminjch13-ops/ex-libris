@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import type { Book, DropReason, HistoryEntry, Progress, Settings, Status, WishItem } from '../types'
+import type { Book, DropReason, HistoryEntry, Loan, Progress, Settings, Status, WishItem } from '../types'
 import { DEFAULT_SETTINGS, loadSettings, saveSettings, store } from '../lib/db'
 import { genreFromCategory } from '../lib/genres'
 import { compressCover, protectStorage } from '../lib/backup'
@@ -33,6 +33,8 @@ interface LibraryCtx {
   addToTbr: (id: string, where?: 'start' | 'end') => void
   removeFromTbr: (id: string) => void
   dropBook: (id: string, reason: DropReason, note?: string, retry?: boolean) => Promise<void>
+  lendBook: (id: string, loan: Loan) => Promise<void>
+  returnBook: (id: string) => Promise<void>
   wishes: WishItem[]
   saveWish: (w: WishItem) => void
   removeWish: (id: string) => void
@@ -214,6 +216,22 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     addHistoryRef.current({ bookId: id, title: b.title, author: b.author, type: 'abandonado', at: Date.now(), toPage: b.progress?.page, total: b.progress?.total })
   }, [patchBook, addToTbr, removeFromTbr])
 
+  const lendBook = useCallback(async (id: string, loan: Loan) => {
+    const b = booksRef.current.find((x) => x.id === id)
+    if (!b) return
+    const editing = !!b.loan
+    await patchBook(id, { loan: { ...loan, to: loan.to.trim(), note: loan.note?.trim() || undefined } })
+    if (!editing) addHistoryRef.current({ bookId: id, title: b.title, author: b.author, type: 'prestado', at: loan.at, to: loan.to.trim() })
+  }, [patchBook])
+
+  const returnBook = useCallback(async (id: string) => {
+    const b = booksRef.current.find((x) => x.id === id)
+    if (!b?.loan) return
+    const back = Date.now()
+    await patchBook(id, { loan: undefined, loanLog: [...(b.loanLog ?? []), { ...b.loan, back }] })
+    addHistoryRef.current({ bookId: id, title: b.title, author: b.author, type: 'devuelto', at: back, to: b.loan.to })
+  }, [patchBook])
+
   const writeWishes = useCallback((next: WishItem[]) => {
     wishesRef.current = next
     setWishes(next)
@@ -275,8 +293,8 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
   const value = useMemo<LibraryCtx>(() => ({
     ready, persistent, storageProtected, books, history, settings, coverUrl, spineUrl, saveBook, removeBook, patchBook,
     toggleFavorite, setStatus, saveProgress, addHistory, updateSettings, toasts, notify,
-    tbr, setTbr, addToTbr, removeFromTbr, dropBook, wishes, saveWish, removeWish, wishBought,
-  }), [ready, persistent, storageProtected, books, history, settings, coverUrl, spineUrl, saveBook, removeBook, patchBook, toggleFavorite, setStatus, saveProgress, addHistory, updateSettings, toasts, notify, tbr, setTbr, addToTbr, removeFromTbr, dropBook, wishes, saveWish, removeWish, wishBought])
+    tbr, setTbr, addToTbr, removeFromTbr, dropBook, lendBook, returnBook, wishes, saveWish, removeWish, wishBought,
+  }), [ready, persistent, storageProtected, books, history, settings, coverUrl, spineUrl, saveBook, removeBook, patchBook, toggleFavorite, setStatus, saveProgress, addHistory, updateSettings, toasts, notify, tbr, setTbr, addToTbr, removeFromTbr, dropBook, lendBook, returnBook, wishes, saveWish, removeWish, wishBought])
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }

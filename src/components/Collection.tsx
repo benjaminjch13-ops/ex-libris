@@ -7,10 +7,11 @@ import { Cover } from './BookArt'
 import { FilterBar } from './Library'
 import type { Filters } from '../lib/filters'
 import { relTime } from '../lib/hooks'
-import { BookOpen, ChevronLeft, Edit, Heart, Plus, Queue, Trash } from './Icons'
-import { editionLabel, isManual } from './Flows'
+import { BookOpen, ChevronLeft, Close, Edit, Heart, Plus, Queue, Search, Trash } from './Icons'
+import { editionLabel, isManual } from '../lib/books'
 import { DROP_REASONS } from '../types'
-import { Stars } from './ReviewDialog'
+import { Stars } from './Stars'
+import { EmptyArt } from './EmptyArt'
 
 type Sort = 'reciente' | 'titulo' | 'autor' | 'leido'
 
@@ -44,6 +45,11 @@ export function Collection({ visible, filters, setFilters, onBack, onAdd, onEdit
         <button className="icon-btn" onClick={onBack} aria-label="Volver a la estantería"><ChevronLeft /></button>
         <h1>Colección completa</h1>
       </div>
+      <label className="search coll-search" htmlFor="q">
+        <Search size={16} style={{ color: 'var(--muted)', flex: 'none' }} />
+        <input id="q" type="search" placeholder="Buscar por título, autor o categoría" value={filters.q} onChange={(e) => setFilters({ ...filters, q: e.target.value })} autoComplete="off" />
+        {filters.q && <button className="icon-btn" style={{ width: 24, height: 24 }} onClick={() => setFilters({ ...filters, q: '' })} aria-label="Borrar búsqueda"><Close size={14} /></button>}
+      </label>
       <div className="coll-tools">
         <FilterBar filters={filters} setFilters={setFilters} withDropped />
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
@@ -60,6 +66,7 @@ export function Collection({ visible, filters, setFilters, onBack, onAdd, onEdit
       <p className="eyebrow" style={{ margin: '14px 0 12px' }}>{sorted.length} de {books.length} libros</p>
       {sorted.length === 0 ? (
         <div className="empty-state">
+          <EmptyArt kind={books.length ? 'search' : 'shelf'} />
           <h3>{books.length ? 'Ningún libro coincide' : 'Aún no hay libros'}</h3>
           <p>{books.length ? 'Cambia la búsqueda o los filtros para ver más títulos.' : 'Sube tu primer EPUB o PDF, o escanea un libro de papel, para empezar la colección.'}</p>
         </div>

@@ -202,6 +202,7 @@ function ShelfPanel() {
 const SECTIONS: { id: HomeSection; name: string; note: string }[] = [
   { id: 'racha', name: 'Racha y metas', note: 'Días seguidos leyendo, la semana y tus metas' },
   { id: 'mesa', name: 'Sobre la mesa', note: 'Los libros que estás leyendo' },
+  { id: 'prestados', name: 'Prestados', note: 'A quién le prestaste qué; solo aparece si hay alguno' },
   { id: 'siguiente', name: 'A continuación', note: 'El siguiente de tu lista «Por leer»' },
   { id: 'parati', name: 'Para ti', note: 'Libros que pueden gustarte' },
   { id: 'resumen', name: 'Resumen', note: 'Libros, en curso y terminados, junto al saludo' },

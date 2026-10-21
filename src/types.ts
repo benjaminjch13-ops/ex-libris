@@ -97,6 +97,10 @@ export interface Book {
   publisher?: string
   /** manga and comic series: which volume (tomo) this is */
   volume?: number
+  /** a paper book lent to someone right now */
+  loan?: Loan
+  /** past loans, oldest first */
+  loanLog?: (Loan & { back: number })[]
   /** bought in a reading app (Kindle, Apple Books…): tracked by hand like a paper book */
   app?: string
   /** remote cover (catalogue lookup) used when the image could not be stored locally */
@@ -131,7 +135,9 @@ export interface HistoryEntry {
   bookId: string
   title: string
   author: string
-  type: 'sesion' | 'terminado' | 'agregado' | 'abandonado'
+  type: 'sesion' | 'terminado' | 'agregado' | 'abandonado' | 'prestado' | 'devuelto'
+  /** loans: who has it */
+  to?: string
   at: number
   fromPage?: number
   toPage?: number
@@ -188,7 +194,15 @@ export interface ShelfPrefs {
 }
 export type DecorId = 'planta' | 'gato' | 'vela' | 'globo' | 'reloj' | 'pila'
 
-export type HomeSection = 'racha' | 'mesa' | 'siguiente' | 'parati' | 'resumen'
+export type HomeSection = 'racha' | 'mesa' | 'prestados' | 'siguiente' | 'parati' | 'resumen'
+
+export interface Loan {
+  to: string
+  at: number
+  /** when it should come back (optional) */
+  due?: number
+  note?: string
+}
 
 export type ExMotif = 'buho' | 'llave' | 'luna' | 'rama' | 'gato' | 'pluma' | 'estrella' | 'ancla' | 'libro' | 'flor'
 export interface ExLibris {

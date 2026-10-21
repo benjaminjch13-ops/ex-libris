@@ -93,7 +93,7 @@ export const DEFAULT_SETTINGS: Settings = {
   reading: { font: 'literata', spacing: 'normal', margins: 'normal', align: 'justificado', paper: 'tema' },
   shelf: { group: 'categoria', sort: 'reciente', decor: ['planta', 'pila'] },
   customShelves: [],
-  home: { order: ['racha', 'mesa', 'siguiente', 'parati', 'resumen'], hidden: [] },
+  home: { order: ['racha', 'mesa', 'prestados', 'siguiente', 'parati', 'resumen'], hidden: [] },
   goals: {},
   exlibris: { enabled: false, name: '', motif: 'buho', phrase: '', ink: '#5b1f24', shape: 'ovalo' },
 }
@@ -107,7 +107,14 @@ export async function loadSettings(): Promise<Settings> {
   merged.shelf = { ...DEFAULT_SETTINGS.shelf!, ...(saved?.shelf ?? {}) }
   merged.exlibris = { ...DEFAULT_SETTINGS.exlibris!, ...(saved?.exlibris ?? {}) }
   const order = saved?.home?.order ?? []
-  merged.home = { order: [...order, ...DEFAULT_SETTINGS.home!.order.filter((x) => !order.includes(x))], hidden: saved?.home?.hidden ?? [] }
+  // sections added in a later version go right after their neighbour in the default order
+  const full = [...order]
+  DEFAULT_SETTINGS.home!.order.forEach((x, i, def) => {
+    if (full.includes(x)) return
+    const prev = def.slice(0, i).reverse().find((y) => full.includes(y))
+    full.splice(prev ? full.indexOf(prev) + 1 : full.length, 0, x)
+  })
+  merged.home = { order: full, hidden: saved?.home?.hidden ?? [] }
   return merged
 }
 

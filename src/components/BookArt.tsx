@@ -55,7 +55,7 @@ export function Cover({ book, className = '', style }: { book: Book; className?:
   if (url) {
     return (
       <div className={`cover cover-image ${className}`} style={style}>
-        <img src={url} alt={`Portada de ${book.title}`} draggable={false} />
+        <img src={url} alt={`Portada de ${book.title}`} draggable={false} loading="lazy" decoding="async" />
         <span className="cover-sheen" />
       </div>
     )
@@ -85,7 +85,7 @@ function Spine({ book }: { book: Book }) {
   if (photo) {
     return (
       <div className="spine spine-photo">
-        <img src={photo} alt="" draggable={false} />
+        <img src={photo} alt="" draggable={false} loading="lazy" decoding="async" />
       </div>
     )
   }
@@ -126,9 +126,10 @@ export function Book3D({ book, dims, className = '', style, innerPage }: {
       <div className="b-face b-pages-t" />
       <div className="b-face b-pages-b" />
       {innerPage && <div className="b-face b-first">{innerPage}</div>}
-      <div className="b-face b-spine"><Spine book={book} /></div>
+      <div className="b-face b-spine"><Spine book={book} />{book.loan && <i className="loan-tab" aria-hidden />}</div>
       <div className="b-face b-front">
         <div className="b-front-out"><Cover book={book} /></div>
+        {book.loan && <i className="loan-tab front" aria-hidden />}
         <div className="b-front-in" style={{ background: book.palette.bg }}><div className="endpaper" /></div>
       </div>
     </div>

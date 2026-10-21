@@ -7,10 +7,12 @@ import type { OpenOrigin } from './Library'
 import { useLibrary } from '../state/library'
 import { useLiteMotion, useViewport, relTime, fmtSize } from '../lib/hooks'
 import { BookOpen, ChevronLeft, Close, Edit, Heart, Timer } from './Icons'
-import { Stars } from './ReviewDialog'
+import { Stars } from './Stars'
 import { ExLibrisSeal } from './ExLibrisSeal'
-import { editionLabel, isManual } from './Flows'
+import { editionLabel, isManual } from '../lib/books'
 import { DROP_REASONS } from '../types'
+import { LoanCard, lendable } from './Loans'
+import { haptic } from '../lib/haptics'
 
 type StagePhase = 'enter' | 'preview' | 'opening' | 'return' | 'leaving'
 
@@ -24,6 +26,8 @@ interface Props {
   onReview: () => void
   onPage: () => void
   onDrop: () => void
+  /** paper books: lend or edit the loan */
+  onLend?: () => void
   /** paper books: start a timed reading session (absent while one runs for this book) */
   onTimer?: () => void
   /** a timed session for this book is running */
@@ -59,7 +63,7 @@ function useGeometry() {
   }, [w, h])
 }
 
-export function Stage({ book, origin, initial, onRead, onClosed, onEdit, onReview, onPage, onDrop, onTimer, timing }: Props) {
+export function Stage({ book, origin, initial, onRead, onClosed, onEdit, onReview, onPage, onDrop, onTimer, timing, onLend }: Props) {
   const { toggleFavorite, setStatus, tbr, addToTbr, removeFromTbr, notify, settings, patchBook } = useLibrary()
   const custom = settings.customShelves ?? []
   const [shelfMenu, setShelfMenu] = useState(false)
@@ -144,6 +148,37 @@ export function Stage({ book, origin, initial, onRead, onClosed, onEdit, onRevie
     if (phase === 'preview') setTimeout(() => primary.current?.focus({ preventScroll: true }), 350)
   }, [phase])
 
+  // phone: pull the page down from the top to put the book back
+  const stageEl = useRef<HTMLDivElement>(null)
+  const pull = useRef<{ y0: number; dy: number } | null>(null)
+  const setPull = (dy: number, animated = false) => {
+    const el = stageEl.current
+    if (!el) return
+    el.style.setProperty('--pull', `${dy}px`)
+    el.classList.toggle('pull-back', animated)
+  }
+  const onTouchStart = (e: React.TouchEvent) => {
+    if (g.wide || phase !== 'preview' || (stageEl.current?.scrollTop ?? 0) > 0) return
+    if ((e.target as HTMLElement).closest('button, a, select, input, textarea')) return
+    pull.current = { y0: e.touches[0].clientY, dy: 0 }
+  }
+  const onTouchMove = (e: React.TouchEvent) => {
+    const p = pull.current
+    if (!p) return
+    const dy = e.touches[0].clientY - p.y0
+    if (dy < 0 || (stageEl.current?.scrollTop ?? 0) > 0) { pull.current = null; setPull(0, true); return }
+    p.dy = dy
+    setPull(dy * 0.55)
+    backdrop.set(Math.max(0.35, 1 - dy / 500))
+  }
+  const onTouchEnd = () => {
+    const p = pull.current
+    pull.current = null
+    if (!p) return
+    if (p.dy > 120) { haptic('tap'); setPull(0, true); flyHome() }
+    else { setPull(0, true); animate(backdrop, 1, { duration: 0.25 }) }
+  }
+
   function flyHome() {
     setPhase('leaving')
     // The same book can appear on the desk and on a shelf; fly to whichever copy is on screen.
@@ -207,7 +242,8 @@ export function Stage({ book, origin, initial, onRead, onClosed, onEdit, onRevie
     : { left: 0, right: 0, top: g.cy + g.H / 2 + 34, paddingBottom: 'calc(40px + env(safe-area-inset-bottom, 0px))', margin: '0 auto' }
 
   return (
-    <div className="stage" role="dialog" aria-modal="true" aria-label={`Vista previa de ${book.title}`} style={{ overflowY: g.wide ? 'hidden' : 'auto' }}>
+    <div ref={stageEl} className="stage" role="dialog" aria-modal="true" aria-label={`Vista previa de ${book.title}`} style={{ overflowY: g.wide ? 'hidden' : 'auto' }} onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd} onTouchCancel={onTouchEnd}>
+      {!g.wide && phase === 'preview' && <span className="stage-grab" aria-hidden />}
       <motion.div className="stage-backdrop" style={{ opacity: backdrop, minHeight: g.wide ? undefined : '100%' }} onClick={() => phase === 'preview' && flyHome()} />
 
       <div className="stage-book" style={{ left: g.cx - g.W / 2, top: g.cy - g.H / 2, width: g.W, height: g.H }}>
@@ -221,7 +257,7 @@ export function Stage({ book, origin, initial, onRead, onClosed, onEdit, onRevie
 
       {(phase === 'preview' || phase === 'enter') && (
         <motion.div
-          className="preview"
+          className={`preview${showPreview ? ' shown' : ''}`}
           style={previewStyle}
           initial={{ opacity: 0, x: g.wide ? 24 : 0, y: g.wide ? 0 : 16 }}
           animate={showPreview ? { opacity: 1, x: 0, y: 0 } : { opacity: 0 }}
@@ -265,6 +301,7 @@ export function Stage({ book, origin, initial, onRead, onClosed, onEdit, onRevie
               <span className="rt-cta">{hasReview ? 'Ver reseña, calificación y tiempo de lectura' : 'Calificar y escribir reseña'} →</span>
             </button>
           )}
+          {onLend && book.loan && <LoanCard book={book} onEdit={onLend} />}
           <div className="preview-actions">
             {manual ? (
               book.status === 'leyendo' ? (
@@ -306,6 +343,7 @@ export function Stage({ book, origin, initial, onRead, onClosed, onEdit, onRevie
             <button className="chip" onClick={onEdit}><Edit size={13} /> Editar datos</button>
             {custom.length > 0 && <button className="chip" aria-expanded={shelfMenu} onClick={() => setShelfMenu((v) => !v)}>Estantes{book.shelves?.length ? ` · ${book.shelves.filter((x) => custom.includes(x)).length}` : ''}</button>}
             {book.status === 'leyendo' && <button className="chip" onClick={onDrop}>Dejar este libro</button>}
+            {onLend && lendable(book) && !book.loan && <button className="chip" onClick={onLend}>Prestar</button>}
             {book.sourceUrl && <a className="chip" href={book.sourceUrl} target="_blank" rel="noopener noreferrer">Ver origen ↗</a>}
           </div>
           {shelfMenu && custom.length > 0 && (

@@ -43,6 +43,7 @@ La beta se publica sola en `https://<usuario>.github.io/<repositorio>/` cada vez
 - **Libros de papel:** escanea el código de barras (ISBN) con la cámara o busca por título; los datos y la portada llegan de Google Books (también sus catálogos de México y España), Open Library, Internet Archive y Apple Books (prueba también la otra forma del ISBN, de 10 o 13 dígitos, y todas las ediciones de la obra). «Escanear varios» añade un estante entero de una pasada. El progreso se anota a mano («¿En qué página vas?») con botones rápidos de +5, +10 y +20 páginas, y un cronómetro de lectura (con pausa, que sobrevive a recargar la página) suma los minutos a la racha y a la meta diaria. Sirve también para libros comprados en Kindle, Apple Books, etc.
 - **Manga y cómic:** el buscador tiene un modo «Manga y cómic» (AniList, con MyAnimeList/Jikan de respaldo): escribe la serie y el tomo («One Piece 12») y se guarda con su número de tomo, que aparece en el lomo y en la ficha. «Para ti» incluye manga, manhwa y novela gráfica.
 - **Fotos de tu libro de papel:** «Foto de portada» y «Foto del lomo» abren la cámara del teléfono; recortas con las esquinas (con «Girar» si hace falta, y un lomo fotografiado acostado se endereza solo). La portada se usa en la ficha y el lomo se pinta en el estante, con el grosor y la proporción reales del libro. Las fotos entran en el respaldo.
+- **Préstamos:** en la ficha de un libro de papel, «Prestar» guarda a quién, desde cuándo y, si quieres, cuándo te lo devuelve. El libro lleva una ficha de préstamo en el estante, aparece en «Libros prestados» en el inicio (los atrasados primero, con un aviso al abrir la app), se puede filtrar, «Recordarle» abre WhatsApp o Mensajes con un recado amable, y queda en el historial.
 - **Importar varios a la vez:** en «Añadir libro» → «Importar». Acepta un .zip con EPUB/PDF (también en carpetas), varios archivos seleccionados juntos, la exportación de una base de datos de Notion (el .zip de «Markdown y CSV», tal cual), la exportación de Goodreads o cualquier CSV con una columna de título. Reconoce estado, calificación, fechas, páginas, género, formato (Kindle, ebook…) y reseña aunque las columnas tengan otros nombres o emojis; marca los que ya tienes y busca las portadas en línea.
 - **Wishlist:** pega el enlace de cualquier tienda (Amazon/Kindle, Apple Books, Google Play, Buscalibre…) y se completa sola; un libro puede tener varios enlaces y precios. En Android, «Compartir → Ex Libris» desde la tienda. «Ya lo compré» lo pasa a la biblioteca.
 - **Por leer (TBR):** fila ordenable (arrastrar o flechas), ordenar por géneros alternos, cortos primero, los que más esperan. Al terminar o abandonar un libro, la app propone el siguiente.
@@ -83,3 +84,8 @@ La beta se publica sola en `https://<usuario>.github.io/<repositorio>/` cada vez
 ## Siguiente paso: cuentas y sincronización (Supabase)
 
 Sustituir `src/lib/db.ts` por una implementación de la misma interfaz `Store` que use Supabase Auth, una tabla `books` con RLS por `user_id` y Storage para archivos y portadas.
+
+
+## Pruebas
+
+`npm test` corre las pruebas automáticas (Playwright) en un teléfono y un navegador de escritorio, con los catálogos simulados. GitHub Actions las ejecuta en cada push junto con TypeScript y el linter; si algo falla, la beta no se publica.

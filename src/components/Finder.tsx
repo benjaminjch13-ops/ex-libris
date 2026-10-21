@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { cleanIsbn, searchCatalog, searchManga, splitVolume, type CatalogHit } from '../lib/lookup'
 import { Search } from './Icons'
+import { RowsSkeleton } from './Skeleton'
 
 export interface PickExtra { volume?: number }
 
@@ -58,7 +59,8 @@ export function Finder({ onPick, placeholder, autoQuery, onIsbnMiss, allowManga 
         <button className="btn small-btn" type="button" onClick={() => run()} disabled={busy || !q.trim()}>{busy ? <span className="spin" /> : 'Buscar'}</button>
       </div>
       {err && <p className="hint finder-err" role="status">{err}{hint && <> <button type="button" className="link-btn" onClick={() => switchTo(true)}>¿Es un manga o cómic? Búscalo ahí</button></>}</p>}
-      {hits && hits.length > 0 && (
+      {busy && <RowsSkeleton />}
+      {!busy && hits && hits.length > 0 && (
         <ul className="finder-hits" aria-label="Resultados">
           {hits.map((h, i) => (
             <li key={`${h.title}-${i}`}>

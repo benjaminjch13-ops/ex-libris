@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { cleanIsbn } from '../lib/lookup'
 import { Close } from './Icons'
+import { haptic } from '../lib/haptics'
 
 type Detector = { detect: (src: CanvasImageSource) => Promise<{ rawValue: string }[]> }
 
@@ -45,6 +46,7 @@ export function Scanner({ onCode, onClose, continuous, children }: {
       setFlash(true)
       setTimeout(() => setFlash(false), 350)
       navigator.vibrate?.(60)
+      haptic('tap')
       onCodeRef.current(isbn)
       if (!continuous) stopped.current = true
     }

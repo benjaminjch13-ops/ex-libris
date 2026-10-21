@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { useLibrary } from '../state/library'
 import { ChevronLeft } from './Icons'
+import { EmptyArt } from './EmptyArt'
 
 export function History({ onBack }: { onBack: () => void }) {
   const { history, books } = useLibrary()
@@ -30,7 +31,7 @@ export function History({ onBack }: { onBack: () => void }) {
         <div className="stat"><b>{finished}</b><span>libros terminados</span></div>
       </div>
       {days.length === 0 ? (
-        <div className="empty-state"><h3>Todavía no hay lecturas</h3><p>Cuando abras un libro, cada sesión quedará anotada aquí con las páginas que avanzaste.</p></div>
+        <div className="empty-state"><EmptyArt kind="history" /><h3>Todavía no hay lecturas</h3><p>Cuando abras un libro, cada sesión quedará anotada aquí con las páginas que avanzaste.</p></div>
       ) : (
         days.map(([day, entries]) => (
           <div className="hist-day" key={day}>
@@ -47,6 +48,8 @@ export function History({ onBack }: { onBack: () => void }) {
                     {h.type === 'terminado' && 'Terminaste el libro'}
                     {h.type === 'agregado' && 'Añadido a la biblioteca'}
                     {h.type === 'abandonado' && (h.toPage ? `Lo dejaste en la página ${h.toPage}` : 'Lo dejaste')}
+                    {h.type === 'prestado' && `Se lo prestaste a ${h.to ?? 'alguien'}`}
+                    {h.type === 'devuelto' && `${h.to ?? 'Te'} te lo devolvió`}
                     {' · '}{h.author}
                   </div>
                 </div>

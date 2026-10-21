@@ -7,6 +7,8 @@ export interface Filters {
   author: string
   fav: boolean
   shelf?: string
+  /** only books lent to someone */
+  loaned?: boolean
 }
 
 export const EMPTY_FILTERS: Filters = { q: '', status: 'todos', category: '', author: '', fav: false }
@@ -21,6 +23,7 @@ export function applyFilters(books: Book[], f: Filters) {
     if (f.author && b.author !== f.author) return false
     if (f.fav && !b.favorite) return false
     if (f.shelf && !b.shelves?.includes(f.shelf)) return false
+    if (f.loaned && !b.loan) return false
     if (q && !norm(`${b.title} ${b.author} ${b.category}`).includes(q)) return false
     return true
   })

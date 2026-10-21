@@ -5,13 +5,16 @@ import { LibraryProvider, useLibrary } from './state/library'
 import { Library, type OpenOrigin } from './components/Library'
 import { Stage } from './components/Stage'
 import { TimerPill, elapsed, useReadingTimer } from './components/Timer'
+import { LoanDialog, lendable, loanState } from './components/Loans'
 import { ConfirmDialog } from './components/Modal'
 import { applyFilters, EMPTY_FILTERS, type Filters } from './lib/filters'
-import { Check, Clock, Close, Plus, Search, Settings as SettingsIcon, Books, BarChart, Queue, Bag, More, Shelf, Sparkle } from './components/Icons'
+import { Check, Clock, Close, Plus, Settings as SettingsIcon, Books, BarChart, Queue, Bag, More, Shelf, Sparkle } from './components/Icons'
 import type { SharedIn } from './components/Wishlist'
-import { isManual } from './components/Flows'
+import { isManual } from './lib/books'
 import type { PrefTab } from './components/Preferences'
 import type { AddKind } from './components/BookForm'
+import { ViewSkeleton } from './components/Skeleton'
+import { haptic } from './lib/haptics'
 
 // Everything not needed for the first screen loads on demand (and is cached for offline use by the service worker).
 const Reader = lazy(() => import('./components/reader/Reader').then((m) => ({ default: m.Reader })))
@@ -30,7 +33,6 @@ const NextUpDialog = lazy(() => import('./components/Flows').then((m) => ({ defa
 const Preferences = lazy(() => import('./components/Preferences').then((m) => ({ default: m.Preferences })))
 const YearReview = lazy(() => import('./components/YearReview').then((m) => ({ default: m.YearReview })))
 
-const ViewLoading = () => <div className="empty-state" role="status"><div className="spin" /></div>
 
 type View = 'library' | 'collection' | 'history' | 'stats' | 'tbr' | 'wishlist' | 'recs' | 'year'
 
@@ -60,11 +62,14 @@ function Shell() {
   const { timer, start: startTimer, toggle: toggleTimer, stop: stopTimer } = useReadingTimer()
   const timerBook = timer ? books.find((b) => b.id === timer.bookId) : undefined
   const [dropTimer, setDropTimer] = useState(false)
+  const [lendFor, setLendFor] = useState<Book | null>(null)
   // a running session for this book travels with the page note, and stops only once the note is saved
   const logPage = (b: Book) => setPageFor({ book: b, seconds: timer?.bookId === b.id ? Math.round(elapsed(timer) / 1000) : undefined })
   const [nextUp, setNextUp] = useState<string | null>(null)
   const [more, setMore] = useState(false)
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS)
+  // the text search lives in «Colección completa»; leaving it clears the query so the shelves never stay filtered unseen
+  useEffect(() => { if (view !== 'collection') setFilters((f) => (f.q ? { ...f, q: '' } : f)) }, [view])
   const [stage, setStage] = useState<{ id: string; origin: OpenOrigin; initial: 'enter' | 'return'; n: number } | null>(null)
   const [reading, setReading] = useState<{ id: string; fromStart: boolean } | null>(null)
   const [form, setForm] = useState<{ book?: Book; kind?: AddKind; preset?: Partial<Book>; onSaved?: (b: Book) => void } | null>(null)
@@ -148,6 +153,17 @@ function Shell() {
     notify(`«${b.title}» se retiró de la biblioteca`)
   }
 
+  // once a day, a gentle note about books that should have come back
+  useEffect(() => {
+    if (!ready) return
+    const late = books.filter((b) => b.loan && loanState(b.loan).overdue)
+    if (!late.length) return
+    const key = 'exl-loan-nudge', today = new Date().toDateString()
+    try { if (localStorage.getItem(key) === today) return; localStorage.setItem(key, today) } catch { /* private mode: show it anyway */ }
+    const t = setTimeout(() => notify(late.length === 1 ? `«${late[0].title}» ya debería haber vuelto de casa de ${late[0].loan!.to.split(' ')[0]}` : `${late.length} libros prestados ya deberían haber vuelto`), 1800)
+    return () => clearTimeout(t)
+  }, [ready]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const libraryName = settings.libraryName || 'Ex Libris'
 
   return (
@@ -163,18 +179,6 @@ function Shell() {
           {installEvt && (
             <button className="chip hide-sm" onClick={install}>Instalar app</button>
           )}
-          <label className="search" htmlFor="q">
-            <Search size={16} style={{ color: 'var(--muted)', flex: 'none' }} />
-            <input
-              id="q"
-              type="search"
-              placeholder="Buscar por título, autor o categoría"
-              value={filters.q}
-              onChange={(e) => setFilters({ ...filters, q: e.target.value })}
-              autoComplete="off"
-            />
-            {filters.q && <button className="icon-btn" style={{ width: 24, height: 24 }} onClick={() => setFilters({ ...filters, q: '' })} aria-label="Borrar búsqueda"><Close size={14} /></button>}
-          </label>
           <nav className="topnav" aria-label="Secciones">
             <button className="icon-btn hide-sm" aria-pressed={view === 'recs'} onClick={() => go('recs')} aria-label="Libros que pueden gustarte" title="Libros que pueden gustarte"><Sparkle /></button>
             <button className="icon-btn hide-sm" aria-pressed={view === 'tbr'} onClick={() => go('tbr')} aria-label="Por leer" title="Por leer"><Queue /></button>
@@ -194,9 +198,9 @@ function Shell() {
         {!ready ? (
           <div className="empty-state" role="status"><div className="spin" /><p>Abriendo la biblioteca…</p></div>
         ) : (
-          <AnimatePresence mode="wait">
-            <motion.main key={view} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.25 }}>
-              <Suspense fallback={<ViewLoading />}>
+          // CSS entrance: the new view appears at once, without waiting for the old one to fade out
+          <main key={view} className="view-in">
+              <Suspense fallback={<ViewSkeleton />}>
               {view === 'library' && (
                 <Library
                   visible={visible}
@@ -244,8 +248,7 @@ function Shell() {
               {view === 'history' && <History onBack={() => setView('library')} />}
               {view === 'stats' && <Stats onBack={() => setView('library')} onOpenBook={openFromElement} />}
               </Suspense>
-            </motion.main>
-          </AnimatePresence>
+          </main>
         )}
       </div>
 
@@ -267,7 +270,8 @@ function Shell() {
           onReview={() => setReview({ id: stageBook.id })}
           onPage={() => logPage(stageBook)}
           timing={timer?.bookId === stageBook.id}
-          onTimer={isManual(stageBook) && timer?.bookId !== stageBook.id ? () => { startTimer(stageBook.id); notify('Cronómetro en marcha. Cuando termines, anota tu página.') } : undefined}
+          onLend={lendable(stageBook) ? () => setLendFor(stageBook) : undefined}
+          onTimer={isManual(stageBook) && timer?.bookId !== stageBook.id ? () => { startTimer(stageBook.id); haptic('tap'); notify('Cronómetro en marcha. Cuando termines, anota tu página.') } : undefined}
           onDrop={() => setDrop(stageBook)}
         />
       )}
@@ -307,6 +311,9 @@ function Shell() {
       <Suspense fallback={null}><AnimatePresence>
         {pageFor && <PageDialog key={pageFor.book.id} book={books.find((b) => b.id === pageFor.book.id) ?? pageFor.book} seconds={pageFor.seconds} onLogged={pageFor.seconds ? stopTimer : undefined} onClose={() => setPageFor(null)} onFinished={(id) => setReview({ id, justFinished: true })} />}
       </AnimatePresence></Suspense>
+      <AnimatePresence>
+        {lendFor && <LoanDialog key={lendFor.id} book={books.find((b) => b.id === lendFor.id) ?? lendFor} onClose={() => setLendFor(null)} />}
+      </AnimatePresence>
       <Suspense fallback={null}><AnimatePresence>
         {nextUp && <NextUpDialog afterId={nextUp} onClose={() => setNextUp(null)} onStart={(b) => { setStage(null); startBook(b) }} onGoTbr={() => { setStage(null); setView('tbr') }} />}
       </AnimatePresence></Suspense>

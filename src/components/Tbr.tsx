@@ -1,12 +1,13 @@
 import { useMemo, useState } from 'react'
-import { AnimatePresence, Reorder, motion, useDragControls } from 'motion/react'
+import { AnimatePresence, Reorder, useDragControls } from 'motion/react'
 import type { Book, WishItem } from '../types'
 import { useLibrary } from '../state/library'
 import { genreOf } from '../lib/genres'
 import { Cover } from './BookArt'
 import { Modal } from './Modal'
 import { ChevronLeft, Close, Plus } from './Icons'
-import { editionLabel, isManual } from './Flows'
+import { editionLabel, isManual } from '../lib/books'
+import { EmptyArt } from './EmptyArt'
 
 type Entry = { id: string; book?: Book; wish?: WishItem }
 
@@ -91,6 +92,7 @@ export function Tbr({ onBack, onStart, onOpenBook, onWishlist }: {
 
       {entries.length === 0 ? (
         <div className="empty-state">
+          <EmptyArt kind="tbr" />
           <h3>Nada en la fila todavía</h3>
           <p>Añade los libros que quieres leer después, en el orden que prefieras. También puedes sumar libros de tu wishlist que aún no compras.</p>
           <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
@@ -132,7 +134,7 @@ function TbrRow({ entry, index, count, isNext, onUp, onDown, onRemove, onStart, 
       {book ? (
         <button className="tbr-cover" data-book-id={book.id} onClick={(e) => onOpenBook(book, e.currentTarget)} aria-label={`Ver ${title}`}><Cover book={book} /></button>
       ) : (
-        <span className="tbr-cover wish">{wish?.coverRemote ? <img src={wish.coverRemote} alt="" referrerPolicy="no-referrer" /> : <i />}</span>
+        <span className="tbr-cover wish">{wish?.coverRemote ? <img src={wish.coverRemote} alt="" loading="lazy" referrerPolicy="no-referrer" /> : <i />}</span>
       )}
       <div className="tbr-text">
         {isNext && <span className="eyebrow nx">A continuación</span>}
@@ -201,7 +203,7 @@ function TbrPicker({ onClose }: { onClose: () => void }) {
             <li key={w.id}>
               <label>
                 <input type="checkbox" checked={sel.includes(`w:${w.id}`)} onChange={() => toggle(`w:${w.id}`)} />
-                <span className="il-cover wish">{w.coverRemote ? <img src={w.coverRemote} alt="" referrerPolicy="no-referrer" /> : <i />}</span>
+                <span className="il-cover wish">{w.coverRemote ? <img src={w.coverRemote} alt="" loading="lazy" referrerPolicy="no-referrer" /> : <i />}</span>
                 <span className="il-text"><b>{w.title}</b><span>{w.author}</span></span>
               </label>
             </li>
@@ -209,25 +211,5 @@ function TbrPicker({ onClose }: { onClose: () => void }) {
         </ul>
       </div>
     </Modal>
-  )
-}
-
-export function TbrNext({ onStart, onOpen }: { onStart: (b: Book) => void; onOpen: () => void }) {
-  const { tbr, books } = useLibrary()
-  const next = tbr.map((id) => books.find((b) => b.id === id)).find(Boolean)
-  if (!next) return null
-  return (
-    <motion.div className="tbr-next" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-      <span className="tn-cover"><Cover book={next} /></span>
-      <span className="tn-text">
-        <span className="eyebrow">A continuación</span>
-        <b>{next.title}</b>
-        <span className="muted">{next.author}{tbr.length > 1 ? ` · ${tbr.length - 1} más en la fila` : ''}</span>
-      </span>
-      <span className="tn-acts">
-        <button className="chip" onClick={() => onStart(next)}>Empezar</button>
-        <button className="chip" onClick={onOpen}>Ver la fila</button>
-      </span>
-    </motion.div>
   )
 }

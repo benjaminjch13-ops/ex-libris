@@ -4,7 +4,7 @@ import type { Book, Status } from '../types'
 import { STATUS_LABEL, DROP_REASONS } from '../types'
 import { useLibrary } from '../state/library'
 import { genreOf } from '../lib/genres'
-import { Stars, fmtRating } from './ReviewDialog'
+import { Stars, fmtRating } from './Stars'
 import { ChevronLeft, ChevronRight } from './Icons'
 
 type Metric = 'libros' | 'paginas'

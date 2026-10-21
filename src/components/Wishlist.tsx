@@ -9,6 +9,7 @@ import { Modal } from './Modal'
 import { Finder } from './Finder'
 import { ChevronLeft, Close, Edit, Plus, Trash } from './Icons'
 import { RecsStrip } from './Recs'
+import { EmptyArt } from './EmptyArt'
 
 export interface SharedIn { url?: string; text?: string; title?: string }
 
@@ -101,6 +102,7 @@ export function Wishlist({ onBack, shared, onSharedDone, onBuyDigital, onRecs }:
 
       {wishes.length === 0 ? (
         <div className="empty-state">
+          <EmptyArt kind="wish" />
           <h3>Tu wishlist está vacía</h3>
           <p>Cuando veas un libro que te llama, guarda aquí el enlace. Al comprarlo, pasa a tu biblioteca con un toque.</p>
         </div>
@@ -113,7 +115,7 @@ export function Wishlist({ onBack, shared, onSharedDone, onBuyDigital, onRecs }:
               const inTbr = tbr.includes(`w:${w.id}`)
               return (
                 <motion.li key={w.id} className="wish-item" layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.97 }}>
-                  <span className="wi-cover">{w.coverRemote ? <img src={w.coverRemote} alt={`Portada de ${w.title}`} referrerPolicy="no-referrer" /> : <i>{w.title.slice(0, 1)}</i>}</span>
+                  <span className="wi-cover">{w.coverRemote ? <img src={w.coverRemote} loading="lazy" alt={`Portada de ${w.title}`} referrerPolicy="no-referrer" /> : <i>{w.title.slice(0, 1)}</i>}</span>
                   <div className="wi-main">
                     <h3>{w.title}</h3>
                     <div className="muted">{[w.author, w.year, w.pages ? `${w.pages} págs.` : ''].filter(Boolean).join(' · ')}</div>
