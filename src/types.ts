@@ -109,6 +109,8 @@ export interface Book {
   dropped?: { reason: DropReason; note?: string; at: number; page?: number; percent?: number }
   /** the reader's own shelves this book is on */
   shelves?: string[]
+  /** how a PDF is shown: trim the margins, split two-page scans, extra contrast (defaults depend on whether it's scanned) */
+  pdfView?: { trim?: boolean; split?: boolean; sharp?: boolean }
   /** the reader said "keep going" to the inactivity nudge; don't ask again before this */
   nudgeAfter?: number
 }

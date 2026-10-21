@@ -5,7 +5,7 @@ import { store } from './db'
 
 export type ReaderSource =
   | { kind: 'flow'; chapters: Chapter[]; toc: TocEntry[]; dispose: () => void }
-  | { kind: 'pdf'; doc: PDFDocumentProxy; numPages: number; aspect: number; toc: TocEntry[]; dispose: () => void }
+  | { kind: 'pdf'; doc: PDFDocumentProxy; numPages: number; aspect: number; aspects: number[]; scanned: boolean; toc: TocEntry[]; dispose: () => void }
 
 const BLOCKS = 'p, h1, h2, h3, h4, h5, h6, blockquote, li, figure, pre, dt, dd, table, img.full'
 
@@ -49,10 +49,8 @@ export async function loadSource(book: Book): Promise<ReaderSource> {
       dispose: () => parsed.urls.forEach((u) => URL.revokeObjectURL(u)),
     }
   }
-  const { openPdf, pdfToc } = await import('./pdf')
+  const { openPdf, pdfToc, pdfAspects, pdfLooksScanned } = await import('./pdf')
   const doc = await openPdf(file)
-  const first = await doc.getPage(1)
-  const vp = first.getViewport({ scale: 1 })
-  const toc = await pdfToc(doc)
-  return { kind: 'pdf', doc, numPages: doc.numPages, aspect: vp.width / vp.height, toc, dispose: () => { doc.destroy() } }
+  const [toc, aspects, scanned] = await Promise.all([pdfToc(doc), pdfAspects(doc), pdfLooksScanned(doc)])
+  return { kind: 'pdf', doc, numPages: doc.numPages, aspect: aspects[0] ?? 0.7, aspects, scanned, toc, dispose: () => { doc.destroy() } }
 }

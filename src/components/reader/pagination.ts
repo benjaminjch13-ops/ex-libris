@@ -4,7 +4,8 @@ export type PageRef =
   | { t: 'title' }
   | { t: 'blank' }
   | { t: 'flow'; c: number; k: number; n: number }
-  | { t: 'pdf'; i: number }
+  /** a PDF page; `h` is the left (0) or right (1) half of a scanned two-page spread */
+  | { t: 'pdf'; i: number; h?: 0 | 1 }
 
 export interface TextBox {
   pageW: number

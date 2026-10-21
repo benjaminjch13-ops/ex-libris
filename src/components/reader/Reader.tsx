@@ -6,7 +6,9 @@ import { loadSource, type ReaderSource } from '../../lib/source'
 import { useMedia, useViewport } from '../../lib/hooks'
 import { buildFlowPages, buildSlots, pageOfSlot, paginate, slotOfPage, textBox, type PageRef, type Pagination } from './pagination'
 import { PageView, PdfCache } from './PageView'
-import { Check, ChevronLeft, ChevronRight, Close, Expand, Highlighter, List, Moon, OnePage, Shrink, StickyNote, Sun, Trash, TwoPages } from '../Icons'
+import { PdfZoom } from './PdfZoom'
+import type { RenderOpts } from '../../lib/pdf'
+import { Check, ChevronLeft, ChevronRight, Close, Expand, Highlighter, List, Moon, OnePage, Search, Shrink, StickyNote, Sun, Trash, TwoPages } from '../Icons'
 import type { Highlight, Note, NoteColor } from '../../types'
 import { NotesLayer, NotePopup, anchorFor, notePosition } from './Notes'
 import { uid } from '../../lib/db'
@@ -120,6 +122,12 @@ function ReaderBody({ book, src, vp, reduce, fromStart, onClose, settings, updat
   const { setStatus } = useLibrary()
   const [readPop, setReadPop] = useState(false)
   const isPdf = src.kind === 'pdf'
+  // PDF: scanned books get their margins trimmed, two-page scans split and a little more contrast, unless the reader says otherwise
+  const scanned = src.kind === 'pdf' && src.scanned
+  const pv = { trim: book.pdfView?.trim ?? scanned, split: book.pdfView?.split ?? scanned, sharp: book.pdfView?.sharp ?? scanned }
+  const setPv = (patch: Partial<typeof pv>) => patchBook(book.id, { pdfView: { ...pv, ...patch } })
+  const hasSpreads = src.kind === 'pdf' && src.aspects.some((a) => a > 1.15)
+  const pdfFitted = isPdf && (pv.trim || (pv.split && hasSpreads))
   const closeWith = () => onClose(session.current.finished)
   // Two facing pages need room; on narrow screens the reader always shows one page.
   const canSpread = vp.w >= 760 && vp.h >= 520 && vp.w / vp.h > 0.9
@@ -138,7 +146,13 @@ function ReaderBody({ book, src, vp, reduce, fromStart, onClose, settings, updat
     // on phones the title sits on its own row under the tools, so the bar is taller
     const short = vp.h < 500 // phone held sideways: the bars are slimmer
     const availH = vp.h - (narrow ? 150 : short ? 92 : 128)
-    if (isPdf) {
+    if (isPdf && pdfFitted) {
+      // trimmed or split pages change shape page to page: give them all the room and fit each one inside
+      const pageH = Math.max(200, availH)
+      const pageW = spread ? Math.min(availW / 2, pageH * 0.85) : Math.min(availW, 1100)
+      return { pageW: Math.floor(pageW), pageH: Math.floor(pageH) }
+    }
+    if (isPdf && src.kind === 'pdf') {
       const a = src.aspect
       let pageH = Math.min(availH, (spread ? availW / 2 : availW) / a)
       pageH = Math.max(200, pageH)
@@ -153,7 +167,7 @@ function ReaderBody({ book, src, vp, reduce, fromStart, onClose, settings, updat
     // phones are tall and narrow: let the page use that height instead of leaving empty bands
     const pageH = Math.min(availH, pageW / (narrow ? 0.48 : 0.56))
     return { pageW: Math.floor(pageW), pageH: Math.floor(pageH) }
-  }, [vp.w, vp.h, spread, isPdf, src])
+  }, [vp.w, vp.h, spread, isPdf, src, pdfFitted])
 
   // a new reading look (font, spacing, margins, alignment) is a new text box, so the book is paginated again
   const rKey = readingKey(settings.reading)
@@ -175,9 +189,9 @@ function ReaderBody({ book, src, vp, reduce, fromStart, onClose, settings, updat
   }, [src, box])
 
   const pages: PageRef[] = useMemo(() => {
-    if (src.kind === 'pdf') return Array.from({ length: src.numPages }, (_, i) => ({ t: 'pdf', i }) as PageRef)
+    if (src.kind === 'pdf') return src.aspects.flatMap((a, i): PageRef[] => (pv.split && a > 1.15 ? [{ t: 'pdf', i, h: 0 }, { t: 'pdf', i, h: 1 }] : [{ t: 'pdf', i }]))
     return counts ? buildFlowPages(counts) : []
-  }, [src, counts])
+  }, [src, counts, pv.split])
   const slots = useMemo(() => buildSlots(pages, spread), [pages, spread])
   // Flowing books: once paginated, record the real page count for the preview card.
   useEffect(() => {
@@ -202,7 +216,12 @@ function ReaderBody({ book, src, vp, reduce, fromStart, onClose, settings, updat
 
   const pageFromLoc = useCallback(() => {
     const l = loc.current!
-    if (src.kind === 'pdf') return Math.min(Math.max(0, l.page), total - 1)
+    if (src.kind === 'pdf') {
+      // PDF position = page of the file (+ which half of a spread), so it survives splitting on and off
+      const at = pages.findIndex((p) => p.t === 'pdf' && p.i === l.page && (p.h ?? 0) === (l.ratio >= 0.5 ? 1 : 0))
+      const any = pages.findIndex((p) => p.t === 'pdf' && p.i >= l.page)
+      return Math.min(Math.max(0, at >= 0 ? at : any >= 0 ? any : l.page), total - 1)
+    }
     if (l.chapter < 0) return 0
     const start = pages.findIndex((p) => p.t === 'flow' && p.c === l.chapter)
     if (start < 0) return 0
@@ -228,7 +247,7 @@ function ReaderBody({ book, src, vp, reduce, fromStart, onClose, settings, updat
     const ref = pages[currentPage]
     if (!ref) return
     if (ref.t === 'flow') loc.current = { chapter: ref.c, ratio: ref.k / ref.n, page: currentPage }
-    else if (ref.t === 'pdf') loc.current = { chapter: 0, ratio: 0, page: ref.i }
+    else if (ref.t === 'pdf') loc.current = { chapter: 0, ratio: ref.h ? 0.5 : 0, page: ref.i }
     else loc.current = { chapter: -1, ratio: 0, page: 0 }
   }, [currentPage, pages, ready])
 
@@ -238,15 +257,17 @@ function ReaderBody({ book, src, vp, reduce, fromStart, onClose, settings, updat
   const atEnd = ready && slot + step >= slots.length
   useEffect(() => {
     if (!ready || !total) return
-    if (session.current.from < 0) session.current.from = currentPage + 1
-    session.current.to = Math.max(session.current.to, currentPage + 1)
+    const shown = pages[currentPage]?.t === 'pdf' ? (pages[currentPage] as Extract<PageRef, { t: 'pdf' }>).i + 1 : currentPage + 1
+    if (session.current.from < 0) session.current.from = shown
+    session.current.to = Math.max(session.current.to, shown)
     const t = setTimeout(async () => {
       const l = loc.current!
       const shownLast = spread ? Math.min(total, currentPage + 2) : currentPage + 1
       const percent = atEnd ? 1 : shownLast / total
       const p: Progress = {
-        chapter: Math.max(0, l.chapter), ratio: l.chapter < 0 ? 0 : l.ratio, page: currentPage + 1,
-        total, percent, updatedAt: Date.now(),
+        chapter: Math.max(0, l.chapter), ratio: l.chapter < 0 ? 0 : l.ratio,
+        page: src.kind === 'pdf' ? l.page + 1 : currentPage + 1,
+        total: src.kind === 'pdf' ? src.numPages : total, percent, updatedAt: Date.now(),
       }
       await saveProgress(book.id, p)
       setSavedAt(Date.now())
@@ -274,7 +295,7 @@ function ReaderBody({ book, src, vp, reduce, fromStart, onClose, settings, updat
       const seconds = Math.round((Date.now() - s.start) / 1000)
       const minutes = Math.round(seconds / 60)
       if (s.from > 0 && (s.to > s.from || seconds >= 30)) {
-        addHistory({ bookId: book.id, title: book.title, author: book.author, type: 'sesion', at: Date.now(), fromPage: s.from, toPage: s.to, total, minutes, seconds })
+        addHistory({ bookId: book.id, title: book.title, author: book.author, type: 'sesion', at: Date.now(), fromPage: s.from, toPage: s.to, total: src.kind === 'pdf' ? src.numPages : total, minutes, seconds })
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -316,6 +337,7 @@ function ReaderBody({ book, src, vp, reduce, fromStart, onClose, settings, updat
 
   // keyboard
   const [tocOpen, setTocOpen] = useState(false)
+  const [zoom, setZoom] = useState<{ page: number; scale: number; focus?: { x: number; y: number } } | null>(null)
   const [panelTab, setPanelTab] = useState<'indice' | 'notas' | 'subrayados'>('indice')
 
   // ---- post-it notes ----
@@ -417,7 +439,7 @@ function ReaderBody({ book, src, vp, reduce, fromStart, onClose, settings, updat
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement)?.tagName
-      if (openNote || tag === 'TEXTAREA') return
+      if (openNote || zoom || tag === 'TEXTAREA') return
       if (tag === 'INPUT' && (e.target as HTMLInputElement).type !== 'range') return
       if (e.key === 'ArrowRight' || e.key === 'PageDown' || (e.key === ' ' && tag !== 'BUTTON')) { e.preventDefault(); go(1) }
       else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); go(-1) }
@@ -425,25 +447,46 @@ function ReaderBody({ book, src, vp, reduce, fromStart, onClose, settings, updat
       else if (e.key === 'End') jumpToPage(total - 1)
       else if ((e.key === 'n' || e.key === 'N') && !e.metaKey && !e.ctrlKey && !openNote) { e.preventDefault(); setMarking(false); setPlacing((v) => !v) }
       else if ((e.key === 'v' || e.key === 'V') && !e.metaKey && !e.ctrlKey && !openNote) { e.preventDefault(); togglePageMode() }
+      else if ((e.key === 'z' || e.key === 'Z') && isPdf && !e.metaKey && !e.ctrlKey) { e.preventDefault(); openZoom(1) }
       else if ((e.key === 's' || e.key === 'S') && !e.metaKey && !e.ctrlKey && !openNote && !isPdf) { e.preventDefault(); setPlacing(false); setMarking((v) => !v) }
       else if (e.key === 'Escape') { if (marking) setMarking(false); else if (placing) setPlacing(false); else if (tocOpen) setTocOpen(false); else if (!document.fullscreenElement) closeWith() }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [go, jumpToPage, total, tocOpen, closeWith, placing, openNote, marking, isPdf, togglePageMode])
+  }, [go, jumpToPage, total, tocOpen, closeWith, placing, openNote, marking, isPdf, togglePageMode, zoom])
 
-  // swipe
+  // PDF zoom: a pannable, pinchable view of one page
+  const openZoom = (scale = 1, at?: { clientX: number; clientY: number }) => {
+    if (!isPdf || !total) return
+    setTocOpen(false); setPlacing(false)
+    // in a spread, zoom into the page that was tapped
+    let page = currentPage
+    if (spread && at && at.clientX > vp.w / 2 && currentPage + 1 < total) page = currentPage + 1
+    setZoom({ page, scale, focus: at ? { x: at.clientX / vp.w, y: at.clientY / vp.h } : undefined })
+  }
+
+  // swipe (and, on PDFs, double tap or pinch to zoom)
   const touch = useRef<{ x: number; y: number; t: number } | null>(null)
+  const pointers = useRef(new Set<number>())
+  const lastTap = useRef(0)
   const onPointerDown = (e: React.PointerEvent) => {
+    pointers.current.add(e.pointerId)
+    if (isPdf && pointers.current.size === 2) { touch.current = null; pointers.current.clear(); openZoom(1); return }
     if (e.pointerType === 'mouse') return
     touch.current = { x: e.clientX, y: e.clientY, t: Date.now() }
   }
   const onPointerUp = (e: React.PointerEvent) => {
+    pointers.current.delete(e.pointerId)
     const t = touch.current
     touch.current = null
     if (!t) return
     const dx = e.clientX - t.x, dy = e.clientY - t.y
-    if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.3 && Date.now() - t.t < 800) go(dx < 0 ? 1 : -1)
+    if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.3 && Date.now() - t.t < 800) { go(dx < 0 ? 1 : -1); return }
+    if (isPdf && Math.hypot(dx, dy) < 10) {
+      const now = Date.now()
+      if (now - lastTap.current < 320) { lastTap.current = 0; openZoom(2.5, e) }
+      else lastTap.current = now
+    }
   }
 
   // idle chrome
@@ -473,7 +516,8 @@ function ReaderBody({ book, src, vp, reduce, fromStart, onClose, settings, updat
 
   // ---- render helpers ----
   const chapters = src.kind === 'flow' ? src.chapters : undefined
-  const pdf = src.kind === 'pdf' && pdfCache ? { doc: src.doc, cache: pdfCache } : undefined
+  const pdfOpts = useCallback((ref: Extract<PageRef, { t: 'pdf' }>): RenderOpts => ({ trim: pv.trim, half: ref.h }), [pv.trim])
+  const pdf = src.kind === 'pdf' && pdfCache ? { doc: src.doc, cache: pdfCache, opts: pdfOpts, sharp: pv.sharp } : undefined
   const numberOf = (slotIndex: number) => {
     const p = pageOfSlot(slotIndex, spread)
     const ref = slots[slotIndex]
@@ -496,9 +540,10 @@ function ReaderBody({ book, src, vp, reduce, fromStart, onClose, settings, updat
     if (!pdfCache) return
     for (let d = -2; d <= 4; d++) {
       const p = currentPage + d
-      if (p >= 0 && p < total) pdfCache.get(p, box.pageW)
+      const ref = pages[p]
+      if (ref?.t === 'pdf') pdfCache.get(ref.i, box.pageW, pdfOpts(ref))
     }
-  }, [currentPage, pdfCache, total, box.pageW])
+  }, [currentPage, pdfCache, total, box.pageW, pages, pdfOpts])
 
   const shadeFront = useTransform(angle, (a) => Math.sin((Math.abs(a) * Math.PI) / 180) * 0.32)
   const shadeBack = useTransform(angle, (a) => Math.sin((Math.abs(a) * Math.PI) / 180) * 0.22)
@@ -553,11 +598,15 @@ function ReaderBody({ book, src, vp, reduce, fromStart, onClose, settings, updat
         <button className="icon-btn" onClick={() => { setMarking(false); setPlacing((v) => !v) }} aria-pressed={placing} aria-label={placing ? 'Cancelar nota' : 'Pegar un post-it'} title="Pegar un post-it (N)"><StickyNote /></button>
         <div className="ttl"><b>{book.title}</b><span>{chapterTitle}</span></div>
         <div className="reader-tools">
-          <div className="font-ctl" role="group" aria-label="Tamaño de letra" title={isPdf ? 'El PDF conserva su diseño original' : 'Tamaño de letra'}>
-            <button disabled={isPdf || fontIdx <= 0} onClick={() => updateSettings({ fontScale: FONT_STEPS[Math.max(0, fontIdx - 1)] })} aria-label="Reducir letra" style={{ fontSize: 12 }}>A</button>
-            <button disabled={isPdf || fontIdx >= FONT_STEPS.length - 1} onClick={() => updateSettings({ fontScale: FONT_STEPS[Math.min(FONT_STEPS.length - 1, (fontIdx < 0 ? 2 : fontIdx) + 1)] })} aria-label="Aumentar letra" style={{ fontSize: 17 }}>A</button>
+          {isPdf ? (
+            <button className="icon-btn" onClick={() => openZoom(1)} aria-label="Ampliar la página" title="Ampliar la página (Z) · también doble toque o pellizco"><Search /></button>
+          ) : (
+          <div className="font-ctl" role="group" aria-label="Tamaño de letra" title="Tamaño de letra">
+            <button disabled={fontIdx <= 0} onClick={() => updateSettings({ fontScale: FONT_STEPS[Math.max(0, fontIdx - 1)] })} aria-label="Reducir letra" style={{ fontSize: 12 }}>A</button>
+            <button disabled={fontIdx >= FONT_STEPS.length - 1} onClick={() => updateSettings({ fontScale: FONT_STEPS[Math.min(FONT_STEPS.length - 1, (fontIdx < 0 ? 2 : fontIdx) + 1)] })} aria-label="Aumentar letra" style={{ fontSize: 17 }}>A</button>
           </div>
-          <button className="icon-btn aa-btn" onClick={() => setReadPop((v) => !v)} aria-pressed={readPop} aria-label="Ajustes de lectura" title="Letra, interlineado, márgenes y color de página" disabled={isPdf}>Aa</button>
+          )}
+          <button className="icon-btn aa-btn" onClick={() => setReadPop((v) => !v)} aria-pressed={readPop} aria-label="Ajustes de lectura" title={isPdf ? 'Cómo se ve el PDF' : 'Letra, interlineado, márgenes y color de página'}>Aa</button>
           <button className="icon-btn" onClick={() => updateSettings({ night: !settings.night })} aria-pressed={settings.night} aria-label={settings.night ? 'Modo día' : 'Modo nocturno'} title="Modo nocturno">
             {settings.night ? <Sun /> : <Moon />}
           </button>
@@ -576,14 +625,34 @@ function ReaderBody({ book, src, vp, reduce, fromStart, onClose, settings, updat
           <>
             <motion.div className="read-pop-back" onClick={() => setReadPop(false)} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} />
             <motion.div className="read-pop" role="dialog" aria-label="Ajustes de lectura" initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
-              <div className="rp-head"><b>Ajustes de lectura</b><button className="icon-btn" onClick={() => setReadPop(false)} aria-label="Cerrar ajustes de lectura"><Close size={16} /></button></div>
-              <ReadingPanel compact />
+              <div className="rp-head"><b>{isPdf ? 'Cómo se ve el PDF' : 'Ajustes de lectura'}</b><button className="icon-btn" onClick={() => setReadPop(false)} aria-label="Cerrar ajustes de lectura"><Close size={16} /></button></div>
+              {isPdf ? (
+                <div className="pdf-opts">
+                  {scanned && <p className="hint">Es un libro escaneado: sus páginas son fotos. Estas opciones ayudan a leerlo en pantalla.</p>}
+                  <label className="check"><input type="checkbox" checked={pv.trim} onChange={(e) => setPv({ trim: e.target.checked })} /> <span><b>Recortar márgenes</b><em>Quita el blanco y los bordes oscuros del escaneo para que el texto se vea más grande.</em></span></label>
+                  {hasSpreads && <label className="check"><input type="checkbox" checked={pv.split} onChange={(e) => setPv({ split: e.target.checked })} /> <span><b>Separar hojas dobles</b><em>Las fotos con dos páginas se leen como dos páginas.</em></span></label>}
+                  <label className="check"><input type="checkbox" checked={pv.sharp} onChange={(e) => setPv({ sharp: e.target.checked })} /> <span><b>Escaneo más nítido</b><em>Más contraste: fondo más claro y letra más oscura.</em></span></label>
+                  <button className="btn small-btn" onClick={() => { setReadPop(false); openZoom(1) }}><Search size={14} /> Ampliar la página</button>
+                </div>
+              ) : <ReadingPanel compact />}
             </motion.div>
           </>
         )}
       </AnimatePresence>
+      {zoom && pdfCache && (
+        <PdfZoom
+          cache={pdfCache}
+          pages={pages}
+          start={zoom.page}
+          startScale={zoom.scale}
+          focus={zoom.focus}
+          opts={pdfOpts}
+          sharp={pv.sharp}
+          onClose={(p) => { setZoom(null); if (p !== currentPage) jumpToPage(p) }}
+        />
+      )}
       <style>{highlightCss}</style>
-      <div className="reader-stage" onPointerDown={onPointerDown} onPointerUp={onPointerUp}>
+      <div className="reader-stage" onPointerDown={onPointerDown} onPointerUp={onPointerUp} onPointerCancel={(e) => pointers.current.delete(e.pointerId)} onDoubleClick={(e) => isPdf && openZoom(2.5, e)}>
         {!ready || !total ? (
           <div className="loading-book" role="status"><div className="ribbon"><i /><i /><i /></div><span>Componiendo páginas…</span></div>
         ) : (
